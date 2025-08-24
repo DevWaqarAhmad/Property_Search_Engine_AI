@@ -23,7 +23,7 @@ def setup_driver():
     options.add_argument('--allow-running-insecure-content')
     options.add_argument('--disable-features=VizDisplayCompositor')
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    #options.add_argument('--headless')
+    options.add_argument('--headless')
     driver = webdriver.Chrome(options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
     driver.execute_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});")
@@ -40,7 +40,7 @@ def setup_driver():
 
     return driver
 
-def random_delay(min_seconds=1, max_seconds=5):
+def random_delay(min_seconds=1, max_seconds=10):
     """Add random human-like delay"""
     time.sleep(random.uniform(min_seconds, max_seconds))
 
@@ -133,7 +133,7 @@ def extract_url(element):
     return "N/A"
 
 
-def scrape_bayut_properties(url, max_properties=10):
+def scrape_bayut_properties(url, max_properties=50):
     """Scrape top property listings from any Bayut URL"""
     driver = setup_driver()
     properties = []
@@ -243,7 +243,7 @@ def scrape_bayut_properties(url, max_properties=10):
     return properties
 
 if __name__ == "__main__":
-    url = "https://www.bayut.com/for-sale/apartments/dubai/business-bay/moon-tower/"
+    url = "https://www.bayut.com/for-sale/apartments/dubai/the-views/"
 
     print("Bayut Property Scraper")
     print("=" * 60)
