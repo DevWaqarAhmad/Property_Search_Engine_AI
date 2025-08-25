@@ -18,9 +18,9 @@ import random
 URL = "https://www.bayut.com/to-rent/property/dubai/"
 search_location = "Jumeirah Village Circle"
 property_type = "Apartment"
-beds = "2"
+beds = "3"
 baths = "1"
-min_price = "80000"
+min_price = ""
 max_price = "150000"
 
 # search_location = 'Jumeirah Village Circle'
@@ -284,98 +284,99 @@ else:
     exit()
 
     
-#--------------------------BEDS & BATHS FILTER -----------------------------------
-try:
-    beds_baths_filter = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, '//div[@aria-label="Beds & Baths filter"]'))
-    )
-    beds_baths_filter.click()
-    print("✅ Clicked 'Beds & Baths' filter")
-except Exception as e:
-    print("❌ Could not click 'Beds & Baths' filter:", str(e))
-    driver.quit()
-    exit()
+# -------------------------- BEDS & BATHS FILTER (Smart Skip) --------------------------
+if beds.strip() or baths.strip():  # Only proceed if at least one is provided
+    try:
+        beds_baths_filter = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//div[@aria-label="Beds & Baths filter"]'))
+        )
+        beds_baths_filter.click()
+        print("✅ Clicked 'Beds & Baths' filter")
+        time.sleep(2)  # Wait for dropdown to open
+    except Exception as e:
+        print("❌ Could not click 'Beds & Baths' filter:", str(e))
+        driver.quit()
+        exit()
 
-time.sleep(2)
+    # --- Select Beds (if provided) ---
+    if beds.strip():
+        try:
+            beds_option = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, 
+                    f'//ul[@aria-label="Beds filter"]//li[contains(text(), "{beds}")]'
+                ))
+            )
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", beds_option)
+            time.sleep(0.5)
+            ActionChains(driver).move_to_element(beds_option).click().perform()
+            print(f"✅ Selected '{beds}' bedrooms")
+        except Exception as e:
+            print(f"❌ Could not select '{beds}' bedrooms:", str(e))
+            # Don't exit — continue to baths or Done
+    else:
+        print(" Skipped Beds (empty)")
 
-# --- Select Beds ------------------------
-try:
-    # Only match Beds (under Beds filter)
-    beds_option = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, 
-            f'//ul[@aria-label="Beds filter"]//li[contains(text(), "{beds}")]'
-        ))
-    )
-    
-    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", beds_option)
-    time.sleep(0.5)
-    
-    ActionChains(driver).move_to_element(beds_option).click(beds_option).perform()
-    print(f"✅ Selected '{beds}' bedrooms")
-    
-except Exception as e:
-    print(f"❌ Could not select '{beds}' bedrooms:", str(e))
-    driver.quit()
-    exit()
+    # --- Select Baths (if provided) ---
+    if baths.strip():
+        try:
+            baths_option = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, 
+                    f'//ul[@aria-label="Baths filter"]//li[contains(text(), "{baths}")]'
+                ))
+            )
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", baths_option)
+            time.sleep(0.5)
+            ActionChains(driver).move_to_element(baths_option).click().perform()
+            print(f"✅ Selected '{baths}' bathrooms")
+        except Exception as e:
+            print(f"❌ Could not select '{baths}' bathrooms:", str(e))
+            # Don't exit — continue to Done
+    else:
+        print(" Skipped Baths (empty)")
 
-# --- Select Baths ----------------------
-try:
-    # Only match Baths (under Baths filter)
-    baths_option = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, 
-            f'//ul[@aria-label="Baths filter"]//li[contains(text(), "{baths}")]'
-        ))
-    )
-    
-    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", baths_option)
-    time.sleep(0.5)
-    
-    ActionChains(driver).move_to_element(baths_option).click(baths_option).perform()
-    print(f"✅ Selected '{baths}' bathrooms")
-    
-except Exception as e:
-    print(f"❌ Could not select '{baths}' bathrooms:", str(e))
-    driver.quit()
-    exit()
+# -------------------------- PRICE RANGE FILTER (Smart Skip) --------------------------
+if min_price.strip() or max_price.strip():  # Only proceed if at least one is provided
+    try:
+        price_filter = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, '//div[@role="button" and .//span[text()="Price (AED)"]]'))
+        )
+        price_filter.click()
+        print("✅ Clicked 'Price (AED)' filter")
+        time.sleep(1)  # Let inputs load
+    except Exception as e:
+        print("❌ Could not click 'Price (AED)' filter:", str(e))
+        driver.quit()
+        exit()
 
-# Price Range Filter -----------------------------------
-try:
-    price_filter = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, '//div[@role="button" and .//span[text()="Price (AED)"]]'))
-    )
-    price_filter.click()
-    print("✅ Clicked 'Price (AED)' filter")
-    time.sleep(1)  # Let inputs load
-except Exception as e:
-    print("❌ Could not click 'Price (AED)' filter:", str(e))
-    driver.quit()
-    exit()
+    # --- Enter Min Price (if provided) ---
+    if min_price.strip():
+        try:
+            min_input = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, '//input[@id="activeNumericInput"]'))
+            )
+            min_input.clear()
+            min_input.send_keys(min_price)
+            print(f"✅ Entered Min Price: {min_price}")
+        except Exception as e:
+            print(f"❌ Could not enter Min Price: {str(e)}")
+    else:
+        print(" Skipped Min Price (empty)")
 
-# ------------- Enter Min Price ----------------------------------
-try:
-    min_input = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, '//input[@id="activeNumericInput"]'))
-    )
-    min_input.clear()
-    min_input.send_keys(min_price)
-    print(f"✅ Entered Min Price: {min_price}")
-except Exception as e:
-    print(f"❌ Could not enter Min Price: {str(e)}")
-    driver.quit()
-    exit()
+    # --- Enter Max Price (if provided) ---
+    if max_price.strip():
+        try:
+            max_input = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, '//input[@id="inactiveNumericInput"]'))
+            )
+            max_input.clear()
+            max_input.send_keys(max_price)
+            print(f"✅ Entered Max Price: {max_price}")
+        except Exception as e:
+            print(f"❌ Could not enter Max Price: {str(e)}")
+    else:
+        print(" Skipped Max Price (empty)")
 
-# ---------------- Enter Max Price ------------------
-try:
-    max_input = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, '//input[@id="inactiveNumericInput"]'))
-    )
-    max_input.clear()
-    max_input.send_keys(max_price)
-    print(f"✅ Entered Max Price: {max_price}")
-except Exception as e:
-    print(f"❌ Could not enter Max Price: {str(e)}")
-    driver.quit()
-    exit()
+
 
 
 # ---------------------------------------------------------------------------------------------------------
