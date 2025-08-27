@@ -15,6 +15,7 @@ import random
 
 
 # --- Configuration ---
+print('Start Program -------------------------------------')
 URL = "https://www.bayut.com/to-rent/property/dubai/"
 PURPOSE = "Rent"
 search_location = "Jumeirah Village Circle"
