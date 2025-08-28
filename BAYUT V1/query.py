@@ -149,7 +149,129 @@ def generate_bayut_url(user_query):
     except Exception:
         return "https://www.bayut.com/"
 # --------------------- TEST THE QUERY TO URLs ----------------------------------------------
-user_query = "i want to buy apartment and villa in ajamn"
+
+
+
+# --------------------- TEST THE QUERY TO URLs ----------------------------------------------
+
+
+def generate_bayut_url_v2(user_query):
+    """
+    Generates a Bayut URL with correct handling of:
+    - Residential and commercial property types
+    - Multiple types → primary in path, others in ?categories=
+    - Uses Bayut’s priority order
+    """
+    # Commercial priority (lower = higher)
+    commercial_priority = {
+        "office": 1,
+        "warehouse": 2,
+        "showroom": 7,
+        "shop": 8,
+        "labour camp": 9,
+        "bulk unit": 10,
+        "factory": 12,
+        "mixed use land": 13,
+        "other": 14
+    }
+
+    # Commercial slug map
+    commercial_slug_map = {
+        "office": "offices",
+        "warehouse": "warehouses",
+        "showroom": "showrooms",
+        "shop": "shops",
+        "labour camp": "labour-camps",
+        "bulk unit": "bulk-units",
+        "factory": "factories",
+        "industrial land": "industrial-land",
+        "mixed use land": "mixed-use-land",
+        "other": "commercial"
+    }
+
+    # Residential priority
+    residential_priority = {
+        "apartment": 1,
+        "townhouse": 2,
+        "villa compound": 3,
+        "land": 4,
+        "building": 5,
+        "villa": 6,
+        "penthouse": 7,
+        "hotel apartment": 8,
+        "floor": 9
+    }
+
+    # Residential slug map
+    residential_slug_map = {
+        "apartment": "apartments",
+        "townhouse": "townhouses",
+        "villa compound": "villa-compounds",
+        "land": "residential-plots",
+        "building": "residential-building",
+        "villa": "villas",
+        "penthouse": "penthouses",
+        "hotel apartment": "hotel-apartments",
+        "floor": "residential-floors"
+    }
+
+    prompt = f"""
+            **Situation**
+        You are an expert URL generator for real estate queries, specifically focused on the Bayut.com platform. The system requires generating precise, contextually-appropriate URLs based on user search intents for UAE real estate listings.
+        
+        **Task**
+        Generate a precise, well-structured URL for real estate property searches on Bayut.com based on user input, considering property type, transaction type, and default location.
+        
+        **Objective**
+        Create accurate, user-friendly real estate search URLs that match the exact intent of the user's query while maintaining platform-specific URL structures.
+        
+        **Knowledge**
+        Available data sets:
+        - commercial_priority: {commercial_priority}
+        - commercial_slug_map: {commercial_slug_map}
+        - residential_priority: {residential_priority}
+        - residential_slug_map: {residential_slug_map}
+        
+        Critical rules:
+        - Don't consider user specified location in the url
+        - Always assume UAE as the default location
+        - Default to residential property if no specific property type is mentioned
+        - Default to rent property if no specific property type is mentioned
+        - Prioritize matching user intent with most relevant property category
+        - Handle various query types including rent, buy, property types
+        
+        **Examples**
+        1. Query: "i want residential apartment for rent in satwa"
+           Response: "https://www.bayut.com/to-rent/apartments/uae/"
+        
+        2. Query: "i want commercial villa or office for rent in al qouz or international city dubai"
+           Response: "https://www.bayut.com/to-rent/offices/uae/?categories=commercial-villas"
+        
+        3. Query: "looking for villa or apartment to buy"
+           Response: "https://www.bayut.com/for-sale/villas/uae/"
+        
+        Your response must be precise, matching the exact property type, transaction type, and maintaining the standard Bayut.com URL structure. If the query is ambiguous, default to the most likely residential property search. Prioritize clarity and specificity in URL generation.
+        
+        user_query: {user_query}
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        text = response.text
+        # print(text)
+        return text
+
+
+
+    except Exception as e:
+        print(e)
+        return "https://www.bayut.com/"
+
+
+# --------------------- TEST THE QUERY TO URLs ----------------------------------------------
+
+
+user_query = "I am looking for a vila and apartment in satwa for rent "
 print("Query:", user_query)
-url = generate_bayut_url(user_query)
+url = generate_bayut_url_v2(user_query)
 print("Generated URL:", url)
