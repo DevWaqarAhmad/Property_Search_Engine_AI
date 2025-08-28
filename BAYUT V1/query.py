@@ -1,30 +1,29 @@
 import google.generativeai as genai
 from dotenv import load_dotenv
 import os
-from urllib.parse import quote_plus
 
-# -------------------------API KEY LOADED-------------------------------------------------
+# ------------------------- API KEY LOADED ----------------------------
 load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-2.0-flash")
-#---------------------GENERATE URL FUNCTION-----------------------------------------------
+
+# --------------------- GENERATE URL FUNCTION -----------------------------------------------
 def generate_bayut_url(user_query):
     """
-    Generates a Bayut URL with correct handling of:
-    - Residential and commercial property types
-    - Multiple types in query → primary in path, others in ?categories=
-    - Uses Bayut’s priority order for both residential and commercial
+    Generates a Bayut URL with strict logic:
+    - If query is about 'property', 'residence', or any residential type → use residential logic
+    - Only if 'commercial' is mentioned AND no residential keyword → use commercial
     """
-    # Commercial priority (lower = higher)
+    # Commercial priority
     commercial_priority = {
         "office": 1,
         "warehouse": 2,
+        "showroom": 7,
         "shop": 8,
         "labour camp": 9,
         "bulk unit": 10,
         "factory": 12,
         "mixed use land": 13,
-        "showroom": 7,
         "other": 14
     }
 
@@ -32,14 +31,14 @@ def generate_bayut_url(user_query):
     commercial_slug_map = {
         "office": "offices",
         "warehouse": "warehouses",
+        "showroom": "showrooms",
         "shop": "shops",
         "labour camp": "labour-camps",
         "bulk unit": "bulk-units",
         "factory": "factories",
         "industrial land": "industrial-land",
         "mixed use land": "mixed-use-land",
-        "showroom": "showrooms",
-        "other": "commercial-properties"
+        "other": "commercial"
     }
 
     # Residential priority
@@ -68,87 +67,126 @@ def generate_bayut_url(user_query):
         "floor": "residential-floors"
     }
 
-    prompt = f"""
-    Analyze the query and extract:
-    Intent: rent or sale
-    Property Types: list all mentioned types (e.g., shop, showroom, office)
-    Location: city or emirate like Dubai, Ajman. If not mentioned, use 'uae'
+    # Keywords that force RESIDENTIAL handling
+    residential_keywords = {
+        "property", "properties", "residence", "residential",
+        "apartment", "villa", "townhouse", "penthouse",
+        "hotel apartment", "floor", "land", "building"
+    }
 
-    Rules:
-    - Treat 'villa', 'land', 'building', 'floor' as residential only
-    - Return types in order of mention
+    # Normalize query
+    query_lower = user_query.lower().strip()
 
-    Respond in exactly this format:
-    Intent: rent
-    Property Types: shop, showroom
-    Location: ajman
+    # Check if query contains ANY residential keyword
+    has_residential_keyword = any(word in query_lower for word in residential_keywords)
 
-    Query: {user_query}
-    """
+    # If user said "property", "residence", etc. → force residential
+    if has_residential_keyword:
+        # Use Gemini to extract types, intent, location
+        prompt = f"""
+        Analyze the query and extract:
+        Intent: rent or sale
+        Property Types: list all mentioned types (e.g., apartment, villa)
+        Location: city or emirate like Dubai, Ajman. If not mentioned, use 'uae'
 
-    try:
-        response = model.generate_content(prompt)
-        text = response.text.strip().lower()
+        Rules:
+        - Treat all as residential
+        - Return types in order of mention
 
-        intent = "sale"
-        prop_types = []
-        location = "uae"
+        Respond in exactly this format:
+        Intent: rent
+        Property Types: apartment, villa
+        Location: dubai
 
-        for line in text.splitlines():
-            if "intent:" in line:
-                intent = line.split(":", 1)[1].strip()
-            elif "property types:" in line:
-                raw = line.split(":", 1)[1].strip()
-                prop_types = [pt.strip() for pt in raw.split(",") if pt.strip()]
-            elif "location:" in line:
-                location = line.split(":", 1)[1].strip()
+        Query: {user_query}
+        """
 
-        location_slug = location.replace(" ", "-")
-        base = "to-rent" if "rent" in intent else "for-sale"
+        try:
+            response = model.generate_content(prompt)
+            text = response.text.strip().lower()
 
-        # Check if any commercial type is mentioned
-        commercial_matches = [t for t in prop_types if t in commercial_priority]
+            intent = "sale"
+            prop_types = []
+            location = "uae"
 
-        if commercial_matches:
+            for line in text.splitlines():
+                if "intent:" in line:
+                    intent = line.split(":", 1)[1].strip()
+                elif "property types:" in line:
+                    raw = line.split(":", 1)[1].strip()
+                    prop_types = [pt.strip() for pt in raw.split(",") if pt.strip()]
+                elif "location:" in line:
+                    location = line.split(":", 1)[1].strip()
+
+            location_slug = location.replace(" ", "-")
+            base = "to-rent" if "rent" in intent else "for-sale"
+
+            # If no types, use /property/
+            if not prop_types:
+                return f"https://www.bayut.com/{base}/property/{location_slug}/"
+
             # Sort by priority
-            sorted_commercial = sorted(commercial_matches, key=lambda x: commercial_priority[x])
-            primary_type = sorted_commercial[0]
-            primary_slug = commercial_slug_map.get(primary_type, "commercial-properties")
+            matched = [t for t in prop_types if t in residential_priority]
+            if not matched:
+                return f"https://www.bayut.com/{base}/property/{location_slug}/"
+
+            sorted_types = sorted(matched, key=lambda x: residential_priority[x])
+            primary_type = sorted_types[0]
+            primary_slug = residential_slug_map.get(primary_type, "property")
 
             # Extra types in categories
-            extra_types = sorted_commercial[1:]
+            extra_types = sorted_types[1:]
             if extra_types:
-                extra_slugs = [commercial_slug_map.get(t, "commercial-properties") for t in extra_types]
-                categories_param = "?categories=" + ",".join(extra_slugs)
+                extra_slugs = [residential_slug_map.get(t, "property") for t in extra_types]
+                categories_param = "?categories=" + "%2C".join(extra_slugs)
             else:
                 categories_param = ""
 
             return f"https://www.bayut.com/{base}/{primary_slug}/{location_slug}/{categories_param}"
 
-        # Handle residential
-        residential_matches = [t for t in prop_types if t in residential_priority]
-        if not residential_matches:
-            return f"https://www.bayut.com/{base}/property/{location_slug}/"
+        except Exception:
+            return "https://www.bayut.com/"
 
-        # Sort by priority
-        sorted_residential = sorted(residential_matches, key=lambda x: residential_priority[x])
-        primary_type = sorted_residential[0]
-        primary_slug = residential_slug_map.get(primary_type, primary_type.replace(" ", "-"))
+    # Otherwise: no residential keyword → check for commercial
+    elif "commercial" in query_lower:
+        # Extract intent and location only
+        prompt = f"""
+        Analyze the query and extract:
+        Intent: rent or sale
+        Location: city or emirate like Dubai, Ajman. If not mentioned, use 'uae'
 
-        # Extra types in categories
-        extra_types = sorted_residential[1:]
-        if extra_types:
-            extra_slugs = [residential_slug_map.get(t, t.replace(" ", "-")) for t in extra_types]
-            categories_param = "?categories=" + ",".join(extra_slugs)
-        else:
-            categories_param = ""
+        Respond in exactly this format:
+        Intent: rent
+        Location: dubai
 
-        return f"https://www.bayut.com/{base}/{primary_slug}/{location_slug}/{categories_param}"
+        Query: {user_query}
+        """
 
-    except Exception:
-        return "https://www.bayut.com/"
-#---------------------TEST THE QUERY TO URLs----------------------------------------------
-user_query = "Commercial in dubai"
-print(user_query)
+        try:
+            response = model.generate_content(prompt)
+            text = response.text.strip().lower()
+
+            intent = "sale"
+            location = "uae"
+
+            for line in text.splitlines():
+                if "intent:" in line:
+                    intent = line.split(":", 1)[1].strip()
+                elif "location:" in line:
+                    location = line.split(":", 1)[1].strip()
+
+            location_slug = location.replace(" ", "-")
+            base = "to-rent" if "rent" in intent else "for-sale"
+
+            return f"https://www.bayut.com/{base}/commercial/{location_slug}/"
+
+        except Exception:
+            return "https://www.bayut.com/"
+
+    # Fallback
+    return "https://www.bayut.com/"
+# --------------------- TEST THE QUERY TO URLs ----------------------------------------------
+user_query = "share commerical properties in ajman"
+print("Query:", user_query)
 url = generate_bayut_url(user_query)
-print(url)
+print("Generated URL:", url)
