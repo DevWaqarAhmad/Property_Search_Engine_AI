@@ -164,16 +164,24 @@ def generate_bayut_url(user_query):
     """
     # Commercial priority (lower = higher)
     commercial_priority = {
-        "office": 1,
-        "warehouse": 2,
-        "showroom": 7,
-        "shop": 8,
-        "labour camp": 9,
-        "bulk unit": 10,
-        "factory": 12,
-        "mixed use land": 13,
-        "other": 14
-    }
+    "Office": 1,
+    "Warehouse": 2,
+    "Villa": 3,
+    "Land": 4,
+    "Building": 5,
+    "Industrial Land": 6,
+    "Showroom": 7,
+    "Shop": 8,
+    "Labour Camp": 9,
+    "Bulk Unit": 10,
+    "Floor": 11,
+    "Factory": 12,
+    "Mixed Use Land": 13,
+    "Other Commercial": 14,
+    "Other": 15
+      } 
+ # For any unspecified or custom entry
+
 
     # Commercial slug map
     commercial_slug_map = {
@@ -227,7 +235,10 @@ def generate_bayut_url(user_query):
      Analyze the user query and generate a precise Bayut.com URL with:
          - Correct transaction type: `to-rent` or `for-sale`
          - Primary property type in the path
+         - Bedroom count in the slug if specified
          - Additional types in `?categories=` (comma-encoded as %2C)
+         - Bathroom count in `?baths_in=` parameter
+         - Price range in `?price_min=` and `?price_max=` if mentioned
          - Default location: `/uae/`
          - Correct slug format (plural, hyphenated)
 
@@ -294,15 +305,77 @@ def generate_bayut_url(user_query):
          - No extra text, no explanation
          - Use correct slugs and encoding
 
-     **Examples**
+     9. **Bedroom Handling**
+         - If bedroom count is specified:
+             - Single number: `3-bedroom-apartments`
+             - Multiple numbers: use `X%2C` encoding in slug → `3%2C4-bedroom-apartments`
+             - 8 or more: use `8+-bedroom-apartments` (e.g., 8, 9, 10 → all become 8+)
+             - Always pluralize property type (e.g., apartments, villas)
+         - Bedroom applies to primary and categories if not specified per type
+         - Examples:
+             - "3 bedroom apartment" → `/to-rent/3-bedroom-apartments/uae/`
+             - "8 bedroom villa" → `/to-rent/8+-bedroom-villas/uae/`
+             - "3 and 4 bedroom apartments" → `/to-rent/3%2C4-bedroom-apartments/uae/`
+
+     10. **Bathroom Handling**
+         - Extract all bathroom numbers from query
+         - Use `?baths_in=num` (single) or `?baths_in=num1%2Cnum2` (multiple)
+         - Do not include if no bath mentioned
+         - Combine with `?categories=` using `&` if needed
+         - Examples:
+             - "6 baths" → `?baths_in=6`
+             - "4 and 5 baths" → `?baths_in=4%2C5`
+
+     11. **Price Range Handling (NEW)**
+         - If price is mentioned (e.g., "60,000", "AED 85K", "100k", "1.2 million"):
+             - Convert to full number (e.g., "85k" → 85000, "1.2M" → 1200000)
+             - Use `?price_min=X&price_max=Y` if both min and max given
+             - If only one value: assume ±10–15% range or treat as max (e.g., "under 70K" → `price_max=70000`)
+             - Always in AED, yearly (Bayut default)
+         - Combine with other params using `&`
+         - Examples:
+             - "between 64,000 and 85,000" → `?price_min=64000&price_max=85000`
+             - "up to 100,000" → `?price_max=100000`
+             - "from 50,000" → `?price_min=50000`
+
+     12. **Combined Parameters**
+         - Order of parameters: `?categories=...&price_min=...&price_max=...&baths_in=...`
+         - Use `&` to join multiple parameters
+         - All values must be URL-encoded
+         - Example:
+             - "4 and 7 bedroom apartments with 3 and 4 baths, budget 64K to 85K, also villas"
+             → `/to-rent/4%2C7-bedroom-apartments/uae/?categories=villas&price_min=64000&price_max=85000&baths_in=3%2C4`
+
+     13. **IMPORTANT NOTE**
+        if user query says residence or no mention villas, land, building and floor follow these url 
+        https://www.bayut.com/for-sale/villas/uae/  
+        https://www.bayut.com/for-sale/residential-plots/uae/  
+        https://www.bayut.com/for-sale/residential-building/uae/  
+        https://www.bayut.com/for-sale/residential-floors/uae/  
+
+        if user specifically mentioned commercial villas, land, building and floor follow these url 
+        then follow these links 
+        https://www.bayut.com/for-sale/commercial-villas/uae/  
+        https://www.bayut.com/for-sale/commercial-plots/uae/  
+        https://www.bayut.com/for-sale/commercial-buildings/uae/  
+        https://www.bayut.com/for-sale/commercial-floors/uae/  
+
+     **Examples (Updated with Price Filtering)**
          1. "rent apartments and villas" → https://www.bayut.com/to-rent/apartments/uae/?categories=villas
          2. "buy land, floor and apartment" → https://www.bayut.com/for-sale/apartments/uae/?categories=residential-plots%2Cresidential-floors
-         3. "commercial villas for rent" → https://www.bayut.com/to-rent/commercial-villas/uae/
+         3. "commercial villas for rent" → https://www.bayut.com/to-rent/commercial-villas/uae/  
          4. "lease shops and showrooms" → https://www.bayut.com/to-rent/shops/uae/?categories=showrooms
-         5. "need a property for sale" → https://www.bayut.com/for-sale/property/uae/
-         6. "looking for rental property" → https://www.bayut.com/to-rent/property/uae/
-         7. "commercial plots in uae" → https://www.bayut.com/to-rent/commercial-plots/uae/
+         5. "need a property for sale" → https://www.bayut.com/for-sale/property/uae/  
+         6. "looking for rental property" → https://www.bayut.com/to-rent/property/uae/  
+         7. "commercial plots in uae" → https://www.bayut.com/to-rent/commercial-plots/uae/  
          8. "buy villa compound, penthouse and land" → https://www.bayut.com/for-sale/villa-compounds/uae/?categories=penthouses%2Cresidential-plots
+         9. "3 bedroom apartment for rent" → https://www.bayut.com/to-rent/3-bedroom-apartments/uae/
+         10. "8 bedrooms with 6 baths villa for rent" → https://www.bayut.com/to-rent/8+-bedroom-villas/uae/?baths_in=6
+         11. "4 and 8 bedrooms apartments with 4 and 5 baths and villas" → https://www.bayut.com/to-rent/4%2C8+-bedroom-apartments/uae/?categories=villas&baths_in=4%2C5
+         12. "apartments for rent under 85,000 AED" → https://www.bayut.com/to-rent/apartments/uae/?price_max=85000
+         13. "2 and 7 bedroom apartments with villas, budget 64K to 85K, 3 and 4 baths" → https://www.bayut.com/to-rent/2%2C7-bedroom-apartments/uae/?categories=villas&price_min=64000&price_max=85000&baths_in=3%2C4
+         14. "rent 7 bedroom apartments with villas, min 50K max 110K, 3 or 4 baths" → https://www.bayut.com/to-rent/7-bedroom-apartments/uae/?categories=villas&price_min=50000&price_max=110000&baths_in=3%2C4
+         15. "commercial building for sale over 11 million AED" → https://www.bayut.com/for-sale/commercial-buildings/uae/?price_min=11000000
 
      **Now process this query:**
      "{user_query}"
@@ -329,11 +402,10 @@ def generate_bayut_url(user_query):
 
     except Exception as e:
         return "https://www.bayut.com/to-rent/property/uae/"
+
+
 # --------------------- TEST THE QUERY TO URLs ----------------------------------------------
-user_query = "i want to buy apartment and villa in ajamn"
+user_query = "8 bedroom villa with 6 baths for sale price range 65000 to 100000"
 print("Query:", user_query)
 url = generate_bayut_url(user_query)
 print("Generated URL:", url)
-
-
-#------------PROMPT---------------
