@@ -61,6 +61,8 @@ def extract_query_parameters(query):
     Returns:
         dict: Extracted parameters or error message
     """
+
+    print(f'[INFO] extract_query_parameters function started with input: {query}...')
     query_lower = query.lower()
     
     # Check if it's a property-related query
@@ -220,6 +222,8 @@ def extract_query_parameters(query):
     # Set default location if none found
     if not params['location']:
         params['location'] = 'Dubai'
+
+    print('[DEBUG] params:', params)
     
     return {
         'success': True,
@@ -631,3 +635,15 @@ def chatbot_property_search(user_message):
         return response
     else:
         return f"❌ {result['message']}"
+
+
+
+
+print('test start - ------------------')
+
+un_q = "I want property for rent in satwa"
+out = extract_query_parameters(un_q)
+
+
+print('test end - ------------------')
+

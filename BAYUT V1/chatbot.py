@@ -71,6 +71,8 @@ def chatbot_response(user_input):
             
             # Call the enhanced bayut scraper
             scraped_result = chatbot_property_search(user_input)
+
+            print(f'[DEBUG] scraped_result:  {scraped_result}]')
             
             # Check if it's an error message or actual results
             if scraped_result.startswith("❌"):
@@ -88,7 +90,10 @@ def chatbot_response(user_input):
         Keep responses friendly and professional."""
         
         enhanced_prompt = f"{context}\n\nUser question: {user_input}"
+        print('response----------------------------------------------------')
         response = model.generate_content(enhanced_prompt)
+
+        print('Response:', response.text)
         return response.text
 
     except Exception as e:
@@ -128,22 +133,29 @@ def display_help():
     print("-"*50 + "\n")
 
 
-if __name__ == "__main__":
-    display_welcome_message()
-    
-    while True:
-        query = input("\n💬 You: ")
-        
-        if query.lower() in ["exit", "quit", "bye"]:
-            print("\n👋 Chatbot: Thank you for using Property Search Chatbot! Goodbye!")
-            break
-        elif query.lower() in ["help", "examples", "how"]:
-            display_help()
-            continue
-        elif query.strip() == "":
-            print("🤔 Chatbot: Please enter a message!")
-            continue
-        
-        print("🤖 Chatbot: ", end="", flush=True)
-        answer = chatbot_response(query)
-        print(answer)
+user_in = "i waant property in satwa"
+
+print('test start - ------------------')
+pr = chatbot_response(user_in)
+print('pr:', pr)
+print('test end - ------------------')
+
+# if __name__ == "__main__":
+#     display_welcome_message()
+#
+#     while True:
+#         query = input("\n💬 You: ")
+#
+#         if query.lower() in ["exit", "quit", "bye"]:
+#             print("\n👋 Chatbot: Thank you for using Property Search Chatbot! Goodbye!")
+#             break
+#         elif query.lower() in ["help", "examples", "how"]:
+#             display_help()
+#             continue
+#         elif query.strip() == "":
+#             print("🤔 Chatbot: Please enter a message!")
+#             continue
+#
+#         print("🤖 Chatbot: ", end="", flush=True)
+#         answer = chatbot_response(query)
+#         print(answer)

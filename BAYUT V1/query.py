@@ -1,5 +1,6 @@
 import google.generativeai as genai
 from dotenv import load_dotenv
+import json
 import os
 
 # ------------------------- API KEY LOADED ----------------------------
@@ -152,7 +153,7 @@ def generate_bayut_url(user_query):
 
 
 
-# --------------------- TEST THE QUERY TO URLs ----------------------------------------------
+# --------------------- TEST THE QUERY TO url_v2 ----------------------------------------------
 
 
 def generate_bayut_url_v2(user_query):
@@ -163,6 +164,22 @@ def generate_bayut_url_v2(user_query):
     - Uses Bayut’s priority order
     """
     # Commercial priority (lower = higher)
+
+    purpose_property = ['to-rent', 'for-sale']
+    residential_reproperty_type = ['apartments', 'townhouses', 'villa-compound', 'residential-plots', 'residential-building', 'villas', 'penthouse', 'hotel-apartments', 'residential-floors']
+
+    commercial_property_type = ['warehouses', 'commercial-villas', 'commercial-plots', 'commercial-buildings', 'industrial-land', 'showrooms', 'shops', 'labour-camps', 'bulk-units', 'commercial-floors', 'factories', 'mixed-use-land', 'commerical-properties']
+
+    bedrooms = ['studio', '1', '2', '3', '4', '5', '6', '7', '8+']
+    baths = ['1', '2', '3', '4', '5', '6+']
+    min_price = ['20000', '30000', '40000', '50000']
+    max_price = ['50000', '60000', '85000', '110000']
+    area_sqft_min = ['800', '1000', '1500', '2000']
+    area_sqft_max = ['800', '1000', '1500', '2000']
+
+    exapmple_url = "https://www.bayut.com/to-rent/studio,1-bedroom-apartments/uae/?categories=townhouses%2Cvillas&price_min=20000&price_max=50000"
+
+
     commercial_priority = {
         "office": 1,
         "warehouse": 2,
@@ -189,6 +206,8 @@ def generate_bayut_url_v2(user_query):
         "other": "commercial"
     }
 
+
+
     # Residential priority
     residential_priority = {
         "apartment": 1,
@@ -210,7 +229,7 @@ def generate_bayut_url_v2(user_query):
         "land": "residential-plots",
         "building": "residential-building",
         "villa": "villas",
-        "penthouse": "penthouses",
+        "penthouse": "penthouse",
         "hotel apartment": "hotel-apartments",
         "floor": "residential-floors"
     }
@@ -233,6 +252,7 @@ def generate_bayut_url_v2(user_query):
         - residential_slug_map: {residential_slug_map}
         
         Critical rules:
+        - Strictly use commercial_priority, commercial_slug_map, residential_priority, residential_slug_map for usl priorities and mapping exact keyword in url
         - Don't consider user specified location in the url
         - Always assume UAE as the default location
         - Default to residential property if no specific property type is mentioned
@@ -256,8 +276,8 @@ def generate_bayut_url_v2(user_query):
     """
 
     try:
-        response = model.generate_content(prompt)
-        text = response.text
+        llm_response = model.generate_content(prompt)
+        text = llm_response.text
         # print(text)
         return text
 
@@ -268,10 +288,168 @@ def generate_bayut_url_v2(user_query):
         return "https://www.bayut.com/"
 
 
-# --------------------- TEST THE QUERY TO URLs ----------------------------------------------
+# --------------------- TEST THE QUERY TO url_v2 ----------------------------------------------
 
 
-user_query = "I am looking for a vila and apartment in satwa for rent "
-print("Query:", user_query)
-url = generate_bayut_url_v2(user_query)
-print("Generated URL:", url)
+# --------------------- TEST THE QUERY TO url_v3 ----------------------------------------------
+
+def parse_query_with_gemini(user_query):
+    # --- Allowed parameters ---
+    ALLOWED_PARAMS = {
+        "purpose_property": ['to-rent', 'for-sale'],
+        "property_type": ['apartments', 'townhouses', 'villa-compound', 'residential-plots',
+                                      'residential-building', 'villas', 'penthouse', 'hotel-apartments', 'residential-floors',
+                                      'warehouses', 'commercial-villas', 'commercial-plots', 'commercial-buildings',
+                                      'industrial-land', 'showrooms', 'shops', 'labour-camps', 'bulk-units',
+                                      'commercial-floors', 'factories', 'mixed-use-land', 'commerical-properties'
+                                      ],
+        "bedrooms": ['studio', '1', '2', '3', '4', '5', '6', '7', '8+'],
+        "baths": ['1', '2', '3', '4', '5', '6+'],
+        "min_price": ['20000', '30000', '40000', '50000'],
+        "max_price": ['50000', '60000', '85000', '110000'],
+        "area_sqft_min": ['800', '1000', '1500', '2000'],
+        "area_sqft_max": ['800', '1000', '1500', '2000']
+    }
+
+    # --- Prompt to guide the LLM ---
+    SYSTEM_PROMPT = f"""
+    You are a real estate query parser. Extract structured data from user queries about property search.
+    Only output valid JSON with keys from the list below. Only use values from the allowed lists.
+    Do not invent new keys or values.
+
+    Allowed keys and values:
+    - purpose_property: {ALLOWED_PARAMS['purpose_property']}
+    - property_type: {ALLOWED_PARAMS['property_type']}
+    - bedrooms: {ALLOWED_PARAMS['bedrooms']} (use only these strings; 'studio' counts as bedroom type)
+    - baths: {ALLOWED_PARAMS['baths']}
+    - min_price: {ALLOWED_PARAMS['min_price']}
+    - max_price: {ALLOWED_PARAMS['max_price']}
+    - area_sqft_min: {ALLOWED_PARAMS['area_sqft_min']}
+    - area_sqft_max: {ALLOWED_PARAMS['area_sqft_max']}
+
+    Rules:
+    - Only include keys if mentioned or clearly implied.
+    - purpose_property key is mandatory, default value is to-rent
+    - If property type is residential (e.g., apartment, villa), use 'residential_property_type'.
+    - If commercial (e.g., shop, warehouse), use 'commercial_property_type'.
+    - Output only a JSON object. No extra text.
+    """
+
+    try:
+        llm_response = model.generate_content(f"{SYSTEM_PROMPT}\n\nUser Query: {user_query}")
+        raw_output = llm_response.text.strip()
+
+        # print(raw_output)
+        # return raw_output
+
+        # Clean output (remove markdown if present)
+        if raw_output.startswith("```json"):
+            raw_output = raw_output[7:-3]  # Remove ```json and ```
+
+        parsed_json = json.loads(raw_output)
+
+        # print(parsed_json)
+
+        # Validate values are in allowed lists
+        cleaned = {}
+        for key, value in parsed_json.items():
+            if key in ALLOWED_PARAMS:
+                if isinstance(value, str):
+                    value = [value]  # Convert to list for uniformity
+                # Filter only allowed values
+                valid_values = [v for v in value if v in ALLOWED_PARAMS[key]]
+                if valid_values:
+                    cleaned[key] = valid_values[0] if len(valid_values) == 1 else valid_values
+            else:
+                print(f"Warning: Ignoring unknown key '{key}'")
+
+        return cleaned
+    except Exception as e:
+        print("Error parsing with Gemini:", str(e))
+        # return {}
+
+
+def build_bayut_url(params):
+    # Base URL: purpose + placeholder for location
+
+    print('build_bayut_url fucntion called ------------')
+    purpose = params.get("purpose_property", ["to-rent"]) if "purpose_property" in params else "to-rent"
+    base_url = f"https://www.bayut.com/{purpose}/"
+
+    # --- Build path components ---
+    path_parts = []
+
+    # Bedrooms
+    if "bedrooms" in params:
+        bed = params["bedrooms"]
+        if isinstance(bed, list):
+            bed = ",".join(bed)
+        else:
+            bed = str(bed)
+        path_parts.append(f"{bed}-bedroom")
+
+    print('path_parts: ', path_parts)
+
+    prop_type = None
+    if "property_type" in params:
+        prop_type = params["property_type"]
+        if isinstance(prop_type, list):
+            path_parts.append(f"-{prop_type[0]}")
+        else:
+            path_parts.append(f"{prop_type}")
+
+    print('path_parts: ', path_parts)
+    # Join path parts
+    path_str = "".join(path_parts) + "/uae/"
+
+    print(f"{base_url}{path_str}")
+
+    # --- Query parameters ---
+    query_params = {}
+    if "baths" in params:
+        query_params["facing"] = params["baths"]
+    if "min_price" in params:
+        query_params["price_min"] = params["min_price"]
+    if "max_price" in params:
+        query_params["price_max"] = params["max_price"]
+    if "area_sqft_min" in params:
+        query_params["area_min"] = params["area_sqft_min"]
+    if "area_sqft_max" in params:
+        query_params["area_max"] = params["area_sqft_max"]
+
+    print(f"query_params: {query_params}")
+
+    # # Handle categories (for property type in query)
+    # if "property_type" in params:
+    #     cat_list = []
+    #     val = params["property_type"]
+    #     cat_list.extend(val if isinstance(val, list) else [val])
+    #     query_params["categories"] = "%2C".join(cat_list)  # URL encoded comma
+    #
+    # # Encode query string
+    # query_string = "&".join([f"{k}={v}" for k, v in query_params.items()])
+    #
+    # # Final URL: insert location later, so we leave a marker or placeholder
+    # constructed_url = base_url + path_str
+    # if query_string:
+    #     constructed_url += "?" + query_string
+    #
+    # return constructed_url
+
+
+# --------------------- TEST THE QUERY TO url_v3 ----------------------------------------------
+
+
+
+test_query = "I am looking for apartment or villa or townhouses for rent and price between 20k to 30k and should have 2 bed and 1/2 baths and 800 square foot"
+# test_query = "I want a apartment for rent in jvc dubai in price range 8k and 900 suqure foot"
+paras = parse_query_with_gemini(test_query)
+print(paras)
+print('-----------------------------------spliter 1 --------------------------')
+my_url = build_bayut_url(paras)
+print('-----------------------------------spliter 2 --------------------------')
+print(my_url)
+
+
+# https://www.bayut.com/to-rent/1,2,3,4-bedroom-townhouses/uae/?categories=villa-compound&price_min=20000&price_max=50000&baths_in=1%2C2%2C3
+
