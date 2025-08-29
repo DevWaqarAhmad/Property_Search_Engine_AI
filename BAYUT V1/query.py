@@ -222,7 +222,7 @@ def generate_bayut_url(user_query):
         "land": "residential-plots",
         "building": "residential-building",
         "villa": "villas",
-        "penthouse": "penthouses",
+        "penthouse": "penthouse",
         "hotel apartment": "hotel-apartments",
         "floor": "residential-floors"
     }
@@ -234,9 +234,9 @@ def generate_bayut_url(user_query):
      **Task**
      Analyze the user query and generate a precise Bayut.com URL with:
          - Correct transaction type: `to-rent` or `for-sale`
-         - Primary property type in the path
+         - Primary property type in the path (based on priority)
+         - Additional types in `?categories=` (comma-encoded as %2C), sorted by priority
          - Bedroom count in the slug if specified
-         - Additional types in `?categories=` (comma-encoded as %2C)
          - Bathroom count in `?baths_in=` parameter
          - Price range in `?price_min=` and `?price_max=` if mentioned
          - Default location: `/uae/`
@@ -256,15 +256,15 @@ def generate_bayut_url(user_query):
          - Always use `/uae/` — ignore any specific city (Dubai, Ajman, etc.)
          - Never include `dubai`, `sharjah`, etc. in URL
 
-     3. **Property Type Priority (Residential)**
-         - Use this order for sorting:
+     3. **Residential Property Type Priority**
+         - Use this order for sorting (lower = higher priority):
              1. apartment → apartments
              2. townhouse → townhouses
              3. villa compound → villa-compounds
              4. land → residential-plots
              5. building → residential-building
              6. villa → villas
-             7. penthouse → penthouses
+             7. penthouse → penthouse
              8. hotel apartment → hotel-apartments
              9. floor → residential-floors
 
@@ -282,71 +282,96 @@ def generate_bayut_url(user_query):
              - "showroom" → showrooms
              - "villa" + commercial context → commercial-villas
              - "land" + commercial context → commercial-plots
+             - "building" + commercial context → commercial-buildings
              - "floor" + commercial context → commercial-floors
+             - "other" → commercial-properties
 
      5. **Special Commercial URLs**
          - If "commercial villa" → `/commercial-villas/`
          - If "commercial plot" or "industrial land" → `/commercial-plots/`
+         - If "commercial building" → `/commercial-buildings/`
+         - If "commercial floor" → `/commercial-floors/`
          - If general "commercial property" → `/commercial/`
 
-     6. **Multiple Types Handling**
-         - Primary type: highest priority (based on order above)
-         - Others: added to `?categories=` with `%2C` separator
-         - Example: `?categories=villas%2Cresidential-floors`
+     6. **Commercial Priority Order**
+         - Use this numeric priority to determine primary type:
+             - "Office": 1
+             - "Warehouse": 2
+             - "Villa": 3
+             - "Land": 4
+             - "Building": 5
+             - "Industrial Land": 6
+             - "Showroom": 7
+             - "Shop": 8
+             - "Labour Camp": 9
+             - "Bulk Unit": 10
+             - "Floor": 11
+             - "Factory": 12
+             - "Mixed Use Land": 13
+             - "Other Commercial": 14
+             - "Other": 15
+         - The **lowest number** becomes the **main path**
+         - Others go in `?categories=`, sorted by priority (ascending)
 
-     7. **Fallback Rules**
+     7. **Residential vs Commercial Decision**
+         - If the query contains **"commercial"**, **"business"**, or **"retail"** → use **commercial URLs**
+         - If user says "villas, floor, building, land" **without commercial context** → use **residential URLs**
+         - Example:
+             - "buy villa, floor and land" → residential: `/villas/uae/?categories=residential-floors%2Cresidential-plots`
+             - "buy commercial villa, floor and land" → commercial: `/commercial-villas/uae/?categories=commercial-floors%2Ccommercial-plots`
+
+     8. **Multiple Types Handling**
+         - Primary type: highest priority (lowest number in relevant list)
+         - Others: added to `?categories=` with `%2C` separator
+         - Example: `?categories=townhouses%2Cvillas`
+
+     9. **Fallback Rules**
          - If no valid property type: use `/property/`
          - If no intent: default to `to-rent`
          - If "property" + rent → `/to-rent/property/uae/`
          - If "property" + sale → `/for-sale/property/uae/`
 
-     8. **Output Format**
+     10. **Output Format**
          - Only return the **full URL** — nothing else
          - No extra text, no explanation
          - Use correct slugs and encoding
 
-     9. **Bedroom Handling**
+     11. **Bedroom Handling**
          - If bedroom count is specified:
              - Single number: `3-bedroom-apartments`
-             - Multiple numbers: use `X%2C` encoding in slug → `3%2C4-bedroom-apartments`
-             - 8 or more: use `8+-bedroom-apartments` (e.g., 8, 9, 10 → all become 8+)
-             - Always pluralize property type (e.g., apartments, villas)
-         - Bedroom applies to primary and categories if not specified per type
+             - Multiple numbers: use `X%2C` encoding → `3%2C4-bedroom-apartments`
+             - 8 or more: use `8+-bedroom-apartments`
+             - Always pluralize property type
          - Examples:
              - "3 bedroom apartment" → `/to-rent/3-bedroom-apartments/uae/`
              - "8 bedroom villa" → `/to-rent/8+-bedroom-villas/uae/`
-             - "3 and 4 bedroom apartments" → `/to-rent/3%2C4-bedroom-apartments/uae/`
 
-     10. **Bathroom Handling**
-         - Extract all bathroom numbers from query
-         - Use `?baths_in=num` (single) or `?baths_in=num1%2Cnum2` (multiple)
-         - Do not include if no bath mentioned
-         - Combine with `?categories=` using `&` if needed
+     12. **Bathroom Handling**
+         - Extract all bathroom numbers
+         - Use `?baths_in=num` or `?baths_in=num1%2Cnum2`
+         - Combine with `&` if other params exist
          - Examples:
              - "6 baths" → `?baths_in=6`
              - "4 and 5 baths" → `?baths_in=4%2C5`
 
-     11. **Price Range Handling (NEW)**
-         - If price is mentioned (e.g., "60,000", "AED 85K", "100k", "1.2 million"):
-             - Convert to full number (e.g., "85k" → 85000, "1.2M" → 1200000)
-             - Use `?price_min=X&price_max=Y` if both min and max given
-             - If only one value: assume ±10–15% range or treat as max (e.g., "under 70K" → `price_max=70000`)
-             - Always in AED, yearly (Bayut default)
-         - Combine with other params using `&`
+     13. **Price Range Handling**
+         - If price is mentioned (e.g., "60,000", "AED 85K", "1.2 million"):
+             - Convert to full number (e.g., "85k" → 85000)
+             - Use `?price_min=X&price_max=Y` if range given
+             - If only one value: use `price_max` (e.g., "under 70K" → `price_max=70000`)
+         - Always in AED, yearly
          - Examples:
              - "between 64,000 and 85,000" → `?price_min=64000&price_max=85000`
-             - "up to 100,000" → `?price_max=100000`
-             - "from 50,000" → `?price_min=50000`
 
-     12. **Combined Parameters**
-         - Order of parameters: `?categories=...&price_min=...&price_max=...&baths_in=...`
-         - Use `&` to join multiple parameters
-         - All values must be URL-encoded
+     14. **Combined Parameters**
+         - Order: `?categories=...&price_min=...&price_max=...&baths_in=...`
+         - Use `&` to join
+         - All values URL-encoded
          - Example:
-             - "4 and 7 bedroom apartments with 3 and 4 baths, budget 64K to 85K, also villas"
-             → `/to-rent/4%2C7-bedroom-apartments/uae/?categories=villas&price_min=64000&price_max=85000&baths_in=3%2C4`
+             - "showrooms, commercial floor and other, budget 50K to 200K"
+             → `/to-rent/showrooms/uae/?categories=commercial-floors%2Ccommercial-properties&price_min=50000&price_max=200000`
 
-     13. **IMPORTANT NOTE**
+     15. **IMPORTANT NOTE**
         if user query says residence or no mention villas, land, building and floor follow these url 
         https://www.bayut.com/for-sale/villas/uae/  
         https://www.bayut.com/for-sale/residential-plots/uae/  
@@ -360,22 +385,27 @@ def generate_bayut_url(user_query):
         https://www.bayut.com/for-sale/commercial-buildings/uae/  
         https://www.bayut.com/for-sale/commercial-floors/uae/  
 
-     **Examples (Updated with Price Filtering)**
+     **Examples (Updated with Residential Priority)**
+
          1. "rent apartments and villas" → https://www.bayut.com/to-rent/apartments/uae/?categories=villas
          2. "buy land, floor and apartment" → https://www.bayut.com/for-sale/apartments/uae/?categories=residential-plots%2Cresidential-floors
-         3. "commercial villas for rent" → https://www.bayut.com/to-rent/commercial-villas/uae/  
+         3. "commercial villas for rent" → https://www.bayut.com/to-rent/commercial-villas/uae/
          4. "lease shops and showrooms" → https://www.bayut.com/to-rent/shops/uae/?categories=showrooms
-         5. "need a property for sale" → https://www.bayut.com/for-sale/property/uae/  
-         6. "looking for rental property" → https://www.bayut.com/to-rent/property/uae/  
-         7. "commercial plots in uae" → https://www.bayut.com/to-rent/commercial-plots/uae/  
+         5. "need a property for sale" → https://www.bayut.com/for-sale/property/uae/
+         6. "looking for rental property" → https://www.bayut.com/to-rent/property/uae/
+         7. "commercial plots in uae" → https://www.bayut.com/to-rent/commercial-plots/uae/
          8. "buy villa compound, penthouse and land" → https://www.bayut.com/for-sale/villa-compounds/uae/?categories=penthouses%2Cresidential-plots
          9. "3 bedroom apartment for rent" → https://www.bayut.com/to-rent/3-bedroom-apartments/uae/
          10. "8 bedrooms with 6 baths villa for rent" → https://www.bayut.com/to-rent/8+-bedroom-villas/uae/?baths_in=6
          11. "4 and 8 bedrooms apartments with 4 and 5 baths and villas" → https://www.bayut.com/to-rent/4%2C8+-bedroom-apartments/uae/?categories=villas&baths_in=4%2C5
          12. "apartments for rent under 85,000 AED" → https://www.bayut.com/to-rent/apartments/uae/?price_max=85000
-         13. "2 and 7 bedroom apartments with villas, budget 64K to 85K, 3 and 4 baths" → https://www.bayut.com/to-rent/2%2C7-bedroom-apartments/uae/?categories=villas&price_min=64000&price_max=85000&baths_in=3%2C4
-         14. "rent 7 bedroom apartments with villas, min 50K max 110K, 3 or 4 baths" → https://www.bayut.com/to-rent/7-bedroom-apartments/uae/?categories=villas&price_min=50000&price_max=110000&baths_in=3%2C4
-         15. "commercial building for sale over 11 million AED" → https://www.bayut.com/for-sale/commercial-buildings/uae/?price_min=11000000
+         13. "commercial villas, offices and land for rent" → https://www.bayut.com/to-rent/offices/uae/?categories=commercial-villas%2Ccommercial-plots
+         14. "showrooms, other and commercial floor for lease" → https://www.bayut.com/to-rent/showrooms/uae/?categories=commercial-floors%2Ccommercial-properties
+         15. "rent 7 bedroom apartments with villas, min 50K max 110K, 3 or 4 baths" → https://www.bayut.com/to-rent/7-bedroom-apartments/uae/?categories=villas&price_min=50000&price_max=110000&baths_in=3%2C4
+         16. "share villa, apartment and townhouse" → https://www.bayut.com/to-rent/apartments/uae/?categories=townhouses%2Cvillas
+         17. "i want to buy a floor, building and penthouse" → https://www.bayut.com/for-sale/residential-building/uae/?categories=penthouse%2Cresidential-floors
+         18. "villas, floor, building and land for sale" → https://www.bayut.com/for-sale/villas/uae/?categories=residential-floors%2Cresidential-building%2Cresidential-plots
+         19. "commercial villas, land, building and floor" → https://www.bayut.com/for-sale/commercial-villas/uae/?categories=commercial-plots%2Ccommercial-buildings%2Ccommercial-floors
 
      **Now process this query:**
      "{user_query}"
@@ -405,7 +435,35 @@ def generate_bayut_url(user_query):
 
 
 # --------------------- TEST THE QUERY TO URLs ----------------------------------------------
-user_query = "8 bedroom villa with 6 baths for sale price range 65000 to 100000"
-print("Query:", user_query)
-url = generate_bayut_url(user_query)
-print("Generated URL:", url)
+# user_query = "8 bedroom villa with 6 baths for sale price range 65000 to 100000"
+# print("Query:", user_query)
+# url = generate_bayut_url(user_query)
+# print("Generated URL:", url)
+
+
+#----------------------QUERY DIC----------------------
+test_queries = {
+    "test_1_rent_apartment": "3 bedroom apartment for rent under 85,000 AED",
+    "test_2_sale_villa_baths": "8 bedroom villa with 6 baths for sale between 6.5M and 10M",
+    "test_3_multi_bed_bath": "4 and 5 bedroom apartments with 3 and 4 baths, budget 70K to 90K",
+    "test_4_commercial_warehouse": "lease warehouse and showroom in UAE under 150,000 AED",
+    "test_5_mixed_types": "looking to buy 2 and 7 bedroom apartments and villas, price 64K to 85K, 3 or 4 baths",
+    "test_6_high_bedroom": "rent a 10 bedroom villa with 5 bathrooms above 200,000 AED yearly",
+    "test_7_commercial_villa": "commercial villa and land for sale over 11 million AED",
+    "test_8_simple_property": "need a property for rent",
+    "test_9_budget_apartment": "affordable 1 bedroom apartment to rent in Dubai under 60,000 AED",
+    "test_10_luxury_floor": "buy a residential floor and penthouse in Dubai with price min 5M max 7M",
+    "test_multiple_locations": "share details of villas, apartments, land and floor",
+    "test_commercial_location": "share commercial property",
+    "test_again_commercial": "share commercial villa, floor, and building ",
+    "shop":"i want to rent a shop and showroom"
+}
+
+
+# --- RUN ALL TESTS ---
+print("Running 10 test queries\n")
+for test_name, query in test_queries.items():
+    print(f"📌 [{test_name}]")
+    print(f"📝 Query: {query}")
+    url = generate_bayut_url(query)
+    print(f"🔗 URL: {url}")
