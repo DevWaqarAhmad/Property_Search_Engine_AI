@@ -11,11 +11,15 @@ import pandas as pd
 import json
 import time
 import random
-#from query import generate_find_properties_url
+from query import generate_find_properties_url
 
-
-URL ="https://findproperties.ae/for-rent/properties/uae"
-search_location = "ajman"
+my_query = "3 bedroom apartment for rent"
+print("------------------------------")
+URL = generate_find_properties_url(my_query)
+print(URL)
+print("==============================")
+#URL ="https://findproperties.ae/for-rent/properties/uae"
+search_location = "abu dhabi"
 
 
 st_time = time.time()
