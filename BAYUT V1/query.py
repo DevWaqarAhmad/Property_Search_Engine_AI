@@ -304,11 +304,7 @@ def parse_query_with_gemini(user_query):
                                       'commercial-floors', 'factories', 'mixed-use-land', 'commerical-properties'
                                       ],
         "bedrooms": ['studio', '1', '2', '3', '4', '5', '6', '7', '8+'],
-        "baths": ['1', '2', '3', '4', '5', '6+'],
-        "min_price": ['20000', '30000', '40000', '50000'],
-        "max_price": ['50000', '60000', '85000', '110000'],
-        "area_sqft_min": ['800', '1000', '1500', '2000'],
-        "area_sqft_max": ['800', '1000', '1500', '2000']
+        "baths": ['1', '2', '3', '4', '5', '6+']
     }
 
     # --- Prompt to guide the LLM ---
@@ -322,16 +318,16 @@ def parse_query_with_gemini(user_query):
     - property_type: {ALLOWED_PARAMS['property_type']}
     - bedrooms: {ALLOWED_PARAMS['bedrooms']} (use only these strings; 'studio' counts as bedroom type)
     - baths: {ALLOWED_PARAMS['baths']}
-    - min_price: {ALLOWED_PARAMS['min_price']}
-    - max_price: {ALLOWED_PARAMS['max_price']}
-    - area_sqft_min: {ALLOWED_PARAMS['area_sqft_min']}
-    - area_sqft_max: {ALLOWED_PARAMS['area_sqft_max']}
+    - min_price: any positive number (in AED), optional
+    - max_price: any positive number (in AED), optional
+    - area_sqft_min: any positive number (square feet), optional
+    - area_sqft_max: any positive number (square feet), optional
+    - target_location: any area or location specified in the user query 
 
     Rules:
     - Only include keys if mentioned or clearly implied.
     - purpose_property key is mandatory, default value is to-rent
-    - If property type is residential (e.g., apartment, villa), use 'residential_property_type'.
-    - If commercial (e.g., shop, warehouse), use 'commercial_property_type'.
+    - target_location will be a list if, more than one locations mentioned in the user query.
     - Output only a JSON object. No extra text.
     """
 
@@ -341,6 +337,12 @@ def parse_query_with_gemini(user_query):
 
         # print(raw_output)
         # return raw_output
+        def is_positive_number(val):
+            try:
+                num = float(val)
+                return num > 0
+            except (ValueError, TypeError):
+                return False
 
         # Clean output (remove markdown if present)
         if raw_output.startswith("```json"):
@@ -348,7 +350,7 @@ def parse_query_with_gemini(user_query):
 
         parsed_json = json.loads(raw_output)
 
-        # print(parsed_json)
+        print('parsed_json:', parsed_json)
 
         # Validate values are in allowed lists
         cleaned = {}
@@ -360,6 +362,19 @@ def parse_query_with_gemini(user_query):
                 valid_values = [v for v in value if v in ALLOWED_PARAMS[key]]
                 if valid_values:
                     cleaned[key] = valid_values[0] if len(valid_values) == 1 else valid_values
+            elif key in ["min_price", "max_price", "area_sqft_min", "area_sqft_max"]:
+                # Handle dynamic numeric fields
+                if isinstance(value, list):
+                    value = value[0]  # Take first if list
+                if is_positive_number(value):
+                    cleaned[key] = str(int(float(value)))  # Normalize to string integer
+            elif key == "target_location":
+                if isinstance(value, str) and value.strip():
+                    cleaned[key] = value.strip()
+                elif isinstance(value, list):
+                    cleaned[key] = value[0]
+                else:
+                    cleaned[key] = str(value)
             else:
                 print(f"Warning: Ignoring unknown key '{key}'")
 
@@ -372,7 +387,7 @@ def parse_query_with_gemini(user_query):
 def build_bayut_url(params):
     # Base URL: purpose + placeholder for location
 
-    print('build_bayut_url fucntion called ------------')
+    print('build_bayut_url function called ------------')
     purpose = params.get("purpose_property", ["to-rent"]) if "purpose_property" in params else "to-rent"
     base_url = f"https://www.bayut.com/{purpose}/"
 
@@ -388,7 +403,7 @@ def build_bayut_url(params):
             bed = str(bed)
         path_parts.append(f"{bed}-bedroom")
 
-    print('path_parts: ', path_parts)
+    # print('path_parts: ', path_parts)
 
     prop_type = None
     if "property_type" in params:
@@ -398,52 +413,65 @@ def build_bayut_url(params):
         else:
             path_parts.append(f"{prop_type}")
 
-    print('path_parts: ', path_parts)
+    # print('path_parts: ', path_parts)
     # Join path parts
     path_str = "".join(path_parts) + "/uae/"
 
-    print(f"{base_url}{path_str}")
+    # print(f"{base_url}{path_str}")
 
     # --- Query parameters ---
+
     query_params = {}
-    if "baths" in params:
-        query_params["facing"] = params["baths"]
+
+    # Handle categories (for property type in query)
+    if "property_type" in params:
+        cat_list = []
+        val = params["property_type"]
+        cat_list.extend(val if isinstance(val, list) else [val])
+        query_params["categories"] = "%2C".join(cat_list)  # URL encoded comma
+
     if "min_price" in params:
         query_params["price_min"] = params["min_price"]
     if "max_price" in params:
         query_params["price_max"] = params["max_price"]
+
     if "area_sqft_min" in params:
-        query_params["area_min"] = params["area_sqft_min"]
+        query_params["area_min"] = str(float(params["area_sqft_min"]) * 0.092903)
     if "area_sqft_max" in params:
-        query_params["area_max"] = params["area_sqft_max"]
+        query_params["area_max"] = str(float(params["area_sqft_max"]) * 0.092903)
+
+    if "baths" in params:
+        bath = params["baths"]
+        if isinstance(bath, list):
+            bath = "%2C".join(bath)
+            query_params["baths_in"] = bath
+        else:
+            query_params["baths_in"] = str(bath)
 
     print(f"query_params: {query_params}")
 
-    # # Handle categories (for property type in query)
-    # if "property_type" in params:
-    #     cat_list = []
-    #     val = params["property_type"]
-    #     cat_list.extend(val if isinstance(val, list) else [val])
-    #     query_params["categories"] = "%2C".join(cat_list)  # URL encoded comma
-    #
-    # # Encode query string
-    # query_string = "&".join([f"{k}={v}" for k, v in query_params.items()])
-    #
-    # # Final URL: insert location later, so we leave a marker or placeholder
-    # constructed_url = base_url + path_str
-    # if query_string:
-    #     constructed_url += "?" + query_string
-    #
-    # return constructed_url
+    # Encode query string
+    query_string = "&".join([f"{k}={v}" for k, v in query_params.items()])
+
+    # Final URL: insert location later, so we leave a marker or placeholder
+    constructed_url = base_url + path_str
+    if query_string:
+        constructed_url += "?" + query_string
+
+    # print(f"constructed_url: {constructed_url}")
+
+    return constructed_url
 
 
 # --------------------- TEST THE QUERY TO url_v3 ----------------------------------------------
 
 
 
-test_query = "I am looking for apartment or villa or townhouses for rent and price between 20k to 30k and should have 2 bed and 1/2 baths and 800 square foot"
-# test_query = "I want a apartment for rent in jvc dubai in price range 8k and 900 suqure foot"
+# test_query = "I am looking for apartment or villa or townhouses for rent and price between 20k to 30k and should have 2/3 bed and 2 baths and 800/1100 square foot in satwa dubai"
+# test_query = "I want a apartment/panthouse/townhouse for rent in jvc dubai in price range of 8k to 20k and 900 suqure foot. It have 3 beds and 3 baths."
+test_query = "I want a apartment/panthouse/townhouse for rent in jvc dubai and area should be 90 squr meter"
 paras = parse_query_with_gemini(test_query)
+print('------------Started---------------')
 print(paras)
 print('-----------------------------------spliter 1 --------------------------')
 my_url = build_bayut_url(paras)
