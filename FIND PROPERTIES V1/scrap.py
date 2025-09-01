@@ -15,7 +15,7 @@ import random
 
 
 URL ="https://findproperties.ae/for-rent/properties/uae"
-search_location = "dubai"
+search_location = "ajman"
 
 
 st_time = time.time()
@@ -95,12 +95,12 @@ except Exception as e:
 
 # ------------------- CLICK ON FIRST SUGGESTION FROM DROPDOWN --------------------------
 try:
-    # Wait for first suggestion in dropdown (common classes like MuiAutocomplete-option)
+    # Wait for the first suggestion in dropdown using XPATH
     first_suggestion = wait.until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, '.MuiAutocomplete-option'))
+        EC.element_to_be_clickable((By.XPATH, '//li[@class="MuiAutocomplete-option"][1]'))
     )
     first_suggestion.click()
-    print("✅ Clicked on first suggestion from dropdown")
+    print("✅ Clicked on first suggestion from dropdown using XPATH")
 except Exception as e:
     print("❌ Could not click first suggestion:", e)
     driver.quit()
@@ -110,6 +110,7 @@ time.sleep(2)
 
 
 #-----------------TERMINAL TESTING----------------------------
+print("Entered Location:",search_location)
 print('END-----------')
 print('Total time:', time.time()-st_time)
 driver.quit()
