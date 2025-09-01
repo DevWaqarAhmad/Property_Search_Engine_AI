@@ -11,8 +11,10 @@ model = genai.GenerativeModel("gemini-2.0-flash")
 def generate_find_properties_url(user_query):
     """
     Generates a Find Properties URL with:
-    - Fixed /uae/ location
+    - Bedroom filter (if mentioned)
+    - Property type
     - Intent: rent, sale, or sharing
+    - Dynamic location (uae, dubai, ajman, etc.)
     Returns: raw URL string only
     """
     prompt = f"""
@@ -22,7 +24,13 @@ User Query: "{user_query}"
 
 Rules:
 
-1. Detect the **property type** and map to:
+1. First, detect the **number of bedrooms** if mentioned:
+   - Look for: "1 bedroom", "2-bed", "3 bhk", "studio", "4 room", etc.
+   - If found, format as: `{{number}}-bedroom-` (e.g., "3-bedroom-villa")
+   - Special case: "studio" → use "studio-bedroom-"
+   - If not mentioned, skip the bedroom prefix.
+
+2. Detect the **property type** and map to:
    - apartment → "apartments"
    - villa → "villa"
    - land → "land"
@@ -38,60 +46,81 @@ Rules:
    - penthouse → "penthouse"
    If none, use "properties"
 
-2. Detect the **intent**:
+3. Detect the **intent**:
    - rent, rental, lease, on rent → "for-rent"
-   - buy, sale, purchase, invest → "for-sale"
+   - buy, sale, for sale, purchase, invest → "for-sale"
    - sharing, room, bed space, roommate → "for-sharing"
    If unsure, default to "for-rent"
 
-3. Generate URL in this format:
-   https://findproperties.ae/{{intent}}/{{slug}}/uae
+4. Detect the **location**:
+   - If "dubai" → end with "/dubai"
+   - If "ajman", "sharjah", "abu dhabi" → use that
+   - Otherwise → "/uae"
+
+5. Generate URL in this format:
+   https://findproperties.ae/{{intent}}/{{bedroom_prefix}}{{slug}}/{{location}}
+   - Only include `{{bedroom_prefix}}` if bedroom count or studio is specified.
+   - Example: "4-bedroom-apartments", "7-bedroom-villa", "studio-bedroom-apartments"
 
 Examples:
-- "I want to rent a villa in Dubai" → https://findproperties.ae/for-rent/villa/uae
-- "Looking to buy an apartment in Ajman" → https://findproperties.ae/for-sale/apartments/uae
-- "Need a bed space in Sharjah" → https://findproperties.ae/for-sharing/properties/uae
+- "I want to rent a villa in Dubai" → https://findproperties.ae/for-rent/villa/dubai
+- "Looking to buy an apartment in Ajman" → https://findproperties.ae/for-sale/apartments/ajman
+- "Need a bed space in Sharjah" → https://findproperties.ae/for-sharing/properties/sharjah
+- "I want to rent a 7 bedroom villa in Dubai" → https://findproperties.ae/for-rent/7-bedroom-villa/dubai
+- "Looking to buy a 4 bedroom apartment in Dubai" → https://findproperties.ae/for-sale/4-bedroom-apartments/dubai
+- "Need a 3-bedroom townhouse for rent in UAE" → https://findproperties.ae/for-rent/3-bedroom-townhouse/uae
+- "I want to rent a 2 bhk apartment in Ajman" → https://findproperties.ae/for-rent/2-bedroom-apartments/ajman
+- "Studio apartment for rent in Sharjah" → https://findproperties.ae/for-rent/studio-bedroom-apartments/sharjah
+- "Office space for rent in JVC with parking" → https://findproperties.ae/for-rent/office/uae
+- "Shop for sale in Dubai Mall, retail space" → https://findproperties.ae/for-sale/shops/dubai
+- "Labour camp for rent in Abu Dhabi, need 100 beds" → https://findproperties.ae/for-rent/labour-camps/abu-dhabi
+- "Hotel apartment for short stay in Dubai" → https://findproperties.ae/for-rent/hotel-apartments/dubai
+- "I need a penthouse to buy in Dubai with 5 bedrooms" → https://findproperties.ae/for-sale/5-bedroom-penthouse/dubai
 
 Important:
 - Return ONLY the raw URL
 - No JSON, no explanation, no quotes, no markdown
 - No extra text
-- Always end with "/uae"
+- Always use lowercase
+- Use correct location at the end: /dubai, /ajman, /sharjah, /abu-dhabi, /uae
 - If unsure, use: https://findproperties.ae/for-rent/properties/uae
 """
 
     try:
         response = model.generate_content(prompt)
         url = response.text.strip()
-        # Clean up any surrounding quotes or spaces
-        return url.strip('"\'')
-
+        return url.strip('"\'')  # Removes quotes and spaces
     except Exception as e:
         print("❌ Gemini API Error:", e)
         return "https://findproperties.ae/for-rent/properties/uae"
 
 
 # Test queries
-test_queries = [
-    "I want to rent a villa in Dubai",
-    "Looking to buy an apartment in Ajman with payment plan",
-    "Need a bed space in Sharjah, mixed apartment",
-    "Invest in a luxury penthouse in Dubai Marina",
-    "Office space for rent in JVC with parking",
-    "Shop for sale in Dubai Mall, retail space",
-    "Labour camp for rent in Abu Dhabi, need 100 beds",
-    "Hotel apartment for short stay in Dubai",
-    "Looking to purchase a residential building in Ajman",
-    "Warehouse on lease in Dubai Industrial City"
-]
+# test_queries = [
+#     "I want to rent a villa in Dubai",
+#     "Looking to buy an apartment in Ajman with payment plan",
+#     "Need a bed space in Sharjah, mixed apartment",
+#     "Invest in a luxury penthouse in Dubai Marina",
+#     "Office space for rent in JVC with parking",
+#     "Shop for sale in Dubai Mall, retail space",
+#     "Labour camp for rent in Abu Dhabi, need 100 beds",
+#     "Hotel apartment for short stay in Dubai",
+#     "Looking to purchase a residential building in Ajman",
+#     "Warehouse on lease in Dubai Industrial City"
+# ]
 
-for query in test_queries:
-    url = generate_find_properties_url(query)
-    print(f"'{query}' → {url}")
+# for query in test_queries:
+#     url = generate_find_properties_url(query)
+#     print(f"'{query}' → {url}")
 
 #---------------TEST IN TERMINAL----------------------------------------
 
-# user_query = "Find me a shop for rent in Dubai above 20,000 AED monthly"
-# print("Query:", user_query)
-# url = generate_find_properties_url(user_query)
-# print("Generated URL:", url)
+user_query = "i need villa"
+print("Query:", user_query)
+url = generate_find_properties_url(user_query)
+print("Generated URL:", url)
+
+#------------------------------------------------
+
+
+
