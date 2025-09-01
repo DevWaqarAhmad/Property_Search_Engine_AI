@@ -13,7 +13,10 @@ import time
 import random
 from query import generate_find_properties_url
 
-my_query = "3 bedroom apartment for rent"
+my_query = "for sale villa in 6 bedrooms"
+min_price= ""
+max_price = "100,000"
+bathrooms = "4"
 print("------------------------------")
 URL = generate_find_properties_url(my_query)
 print(URL)
@@ -125,12 +128,17 @@ except Exception as e:
 
 # ------------------- CLEAR AND TYPE NEW LOCATION --------------------------
 try:
-    # Clear any existing text (optional: use clear() or send_keys with backspace)
+    location_input = wait.until(
+        EC.presence_of_element_located((By.XPATH, '//input[@id="multiple-limit-tags"]'))
+    )
+    # Clear the input using Ctrl+A + Backspace (or Delete)
+    location_input.send_keys("\ue009a")  # Ctrl+A to select all
+    location_input.send_keys("\ue003")  # Delete (or use \ue00C for BACKSPACE)
     location_input.clear()
     location_input.send_keys(search_location)
-    print(f"✅ Typed: {search_location}")
+    print(f"✅ Typed {search_location}")
 except Exception as e:
-    print("❌ Could not type location:", e)
+    print("❌ Could not find input field:", e)
     driver.quit()
     exit()
 
@@ -148,7 +156,50 @@ except Exception as e:
     exit()
 time.sleep(2)
 
+#-----------------Applying Price Filter------------------------------------------------
+#-------------------------MIN PRICE------------------------------
+if min_price is not None:
+    try:
+        min_input = wait.until(
+            EC.element_to_be_clickable((By.XPATH, '//input[@id="priceFrom"]'))
+        )
+        min_input.clear()
+        min_input.send_keys(str(min_price))
+        print(f"✅ Min price set to {min_price} AED")
+    except Exception as e:
+        print("❌ Could not set min price:", e)
 
+#--------------------MAX PRICE----------------------------------------
+if max_price is not None:
+    try:
+        max_input = wait.until(
+            EC.element_to_be_clickable((By.XPATH, '//input[@id="priceTo"]'))
+        )
+        max_input.clear()
+        max_input.send_keys(str(max_price))
+        print(f"✅ Max price set to {max_price} AED")
+    except Exception as e:
+        print("❌ Could not set max price:", e)
+
+
+#------------------BATHROOMS COUNT-------------
+
+if bathrooms is not None:
+    try:
+        dropdown = wait.until(
+            EC.element_to_be_clickable((By.XPATH, '//select[@id="bathroom"]'))
+        )
+        dropdown.click()
+        print("✅ Bathroom dropdown opened")
+
+        option = wait.until(
+            EC.element_to_be_clickable((By.XPATH, f'//select[@id="bathroom"]/option[@value="{bathrooms}"]'))
+        )
+        option.click()
+        print(f"✅ Selected {bathrooms} bathrooms")
+
+    except Exception as e:
+        print("❌ Could not set bathroom filter:", e)
 # --------------- Wait for the property list container to appear ----------------------------------
 try:
     WebDriverWait(driver, 20).until(
@@ -195,7 +246,7 @@ print(df.to_string(index=False))
 
 #-----------------TERMINAL TESTING----------------------------
 print("Entered Location:",search_location)
-print(f" Total Listings Found: {len(listings)}")
+
 print('END-----------')
 print('Total time:', time.time()-st_time)
 driver.quit()

@@ -14,7 +14,7 @@ def generate_find_properties_url(user_query):
     - Bedroom filter (if mentioned)
     - Property type
     - Intent: rent, sale, or sharing
-    - Dynamic location (uae, dubai, ajman, etc.)
+    - Fixed location /uae/ by default
     Returns: raw URL string only
     """
     prompt = f"""
@@ -53,9 +53,8 @@ Rules:
    If unsure, default to "for-rent"
 
 4. Detect the **location**:
-   - If "dubai" → end with "/dubai"
-   - If "ajman", "sharjah", "abu dhabi" → use that
-   - Otherwise → "/uae"
+   - "/uae" be defualt "
+   - "no need to create URL with user query like dubai abu dhabi etc"
 
 5. Generate URL in this format:
    https://findproperties.ae/{{intent}}/{{bedroom_prefix}}{{slug}}/{{location}}
@@ -63,26 +62,26 @@ Rules:
    - Example: "4-bedroom-apartments", "7-bedroom-villa", "studio-bedroom-apartments"
 
 Examples:
-- "I want to rent a villa in Dubai" → https://findproperties.ae/for-rent/villa/dubai
-- "Looking to buy an apartment in Ajman" → https://findproperties.ae/for-sale/apartments/ajman
-- "Need a bed space in Sharjah" → https://findproperties.ae/for-sharing/properties/sharjah
-- "I want to rent a 7 bedroom villa in Dubai" → https://findproperties.ae/for-rent/7-bedroom-villa/dubai
-- "Looking to buy a 4 bedroom apartment in Dubai" → https://findproperties.ae/for-sale/4-bedroom-apartments/dubai
+- "I want to rent a villa in Dubai" → https://findproperties.ae/for-rent/villa/uae
+- "Looking to buy an apartment in Ajman" → https://findproperties.ae/for-sale/apartments/uae
+- "Need a bed space in Sharjah" → https://findproperties.ae/for-sharing/properties/uae
+- "I want to rent a 7 bedroom villa in Dubai" → https://findproperties.ae/for-rent/7-bedroom-villa/uae
+- "Looking to buy a 4 bedroom apartment in Dubai" → https://findproperties.ae/for-sale/4-bedroom-apartments/uae
 - "Need a 3-bedroom townhouse for rent in UAE" → https://findproperties.ae/for-rent/3-bedroom-townhouse/uae
-- "I want to rent a 2 bhk apartment in Ajman" → https://findproperties.ae/for-rent/2-bedroom-apartments/ajman
-- "Studio apartment for rent in Sharjah" → https://findproperties.ae/for-rent/studio-bedroom-apartments/sharjah
+- "I want to rent a 2 bhk apartment in Ajman" → https://findproperties.ae/for-rent/2-bedroom-apartments/uae
+- "Studio apartment for rent in Sharjah" → https://findproperties.ae/for-rent/studio-bedroom-apartments/uae
 - "Office space for rent in JVC with parking" → https://findproperties.ae/for-rent/office/uae
-- "Shop for sale in Dubai Mall, retail space" → https://findproperties.ae/for-sale/shops/dubai
-- "Labour camp for rent in Abu Dhabi, need 100 beds" → https://findproperties.ae/for-rent/labour-camps/abu-dhabi
-- "Hotel apartment for short stay in Dubai" → https://findproperties.ae/for-rent/hotel-apartments/dubai
-- "I need a penthouse to buy in Dubai with 5 bedrooms" → https://findproperties.ae/for-sale/5-bedroom-penthouse/dubai
+- "Shop for sale in Dubai Mall, retail space" → https://findproperties.ae/for-sale/shops/uae
+- "Labour camp for rent in Abu Dhabi, need 100 beds" → https://findproperties.ae/for-rent/labour-camps/uae
+- "Hotel apartment for short stay in Dubai" → https://findproperties.ae/for-rent/hotel-apartments/uae
+- "I need a penthouse to buy in Dubai with 5 bedrooms" → https://findproperties.ae/for-sale/5-bedroom-penthouse/uae
 
 Important:
 - Return ONLY the raw URL
 - No JSON, no explanation, no quotes, no markdown
 - No extra text
 - Always use lowercase
-- Use correct location at the end: /dubai, /ajman, /sharjah, /abu-dhabi, /uae
+- Fixed Location /uae/ 
 - If unsure, use: https://findproperties.ae/for-rent/properties/uae
 """
 
@@ -115,12 +114,9 @@ Important:
 
 #---------------TEST IN TERMINAL----------------------------------------
 
-user_query = "i need villa"
-print("Query:", user_query)
-url = generate_find_properties_url(user_query)
-print("Generated URL:", url)
+# user_query = "i need villa in dubai "
+# print("Query:", user_query)
+# url = generate_find_properties_url(user_query)
+# print("Generated URL:", url)
 
 #------------------------------------------------
-
-
-
