@@ -14,9 +14,9 @@ from query import build_find_properties_url
 from bs4 import BeautifulSoup
 from query import parse_query_with_gemini
 
-my_query = "i want a villa in sharjah with 4 bedrooms"
+my_query = "i want a villa in sharjah"
 min_price= ""
-max_price = ""
+max_price = "400000"
 bathrooms = "3"
 print("------------------------------")
 parsed_params = parse_query_with_gemini(my_query)
@@ -219,7 +219,6 @@ except Exception as e:
 #listings = driver.find_elements(By.XPATH, '//div[contains(@class, "listing-list")]')
 
 # ------------------------- BS4 Parsing Section --------------------------
-
 html = driver.page_source
 soup = BeautifulSoup(html, 'html.parser')
 data = []
@@ -228,28 +227,48 @@ listings = soup.find_all('div', class_='listing-body')
 
 for listing in listings:
     try:
-        # Price: <span class="listing-price"> se
+
         price_span = listing.find('span', class_='listing-price')
         price = price_span.get_text(strip=True).split("AED")[0].strip() + " AED" if price_span else "N/A"
 
-        # Title: <h2 class="listing-title"> > <a> tag se
         title_tag = listing.find('h2', class_='listing-title')
         if title_tag and title_tag.find('a'):
             title = title_tag.get_text(strip=True).replace("***", "").strip()
-            # URL banate waqt full link bana rahe hain
             url = "https://findproperties.ae" + title_tag.find('a')['href']
         else:
             title = "N/A"
             url = "N/A"
 
-        # Location: <div class="listing-title flex location"> se
         location_div = listing.find('div', class_='listing-title flex location')
         location = location_div.get_text(strip=True) if location_div else "N/A"
+
+        icons = listing.find_all('div', class_='acr-listing-icon')  
+
+        bedrooms = "N/A"
+        bathrooms = "N/A"
+        area_sqft = "N/A"
+
+        for icon in icons:
+            title_attr = icon.get('title', '').strip()
+            value_span = icon.find('span', class_='acr-listing-icon-value')
+            value = value_span.get_text(strip=True) if value_span else "N/A"
+
+            if title_attr == "Beds":
+                bedrooms = value
+            elif title_attr == "Bathrooms":
+                bathrooms = value
+            elif title_attr == "Square Feet":
+                area_sqft = value
+
+
         data.append({
             "Title": title,
             "Price": price,
             "Location": location,
-            "URL": url
+            "URL": url,
+            "Bedrooms": bedrooms,
+            "Bathrooms": bathrooms,
+            "Area (sqft)": area_sqft
         })
 
     except Exception as e:
