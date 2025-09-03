@@ -8,9 +8,8 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-2.0-flash")
 
-# --------------------- TEST THE QUERY TO url_v3 ----------------------------------------------
+# --------------------- PARSE QUERY WITH GEMINI ----------------------------------------------
 def parse_query_with_gemini(user_query):
-    # --- Allowed parameters (Aligned with findproperties.ae) ---
     ALLOWED_PARAMS = {
         "purpose_property": ['for-rent', 'for-sale', 'for-sharing'],
         "property_type": [
@@ -20,8 +19,6 @@ def parse_query_with_gemini(user_query):
         ],
         "bedrooms": ['studio', '1', '2', '3', '4', '5', '6', '7', '8+', '9', '10+'],
     }
-
-    # --- Prompt to guide the LLM ---
     SYSTEM_PROMPT = f"""
     You are a real estate query parser. Extract structured data from user queries about property search.
     Only output valid JSON with keys from the list below. Only use values from the allowed lists.
@@ -52,7 +49,6 @@ def parse_query_with_gemini(user_query):
             except (ValueError, TypeError):
                 return False
 
-        # Clean output
         if raw_output.startswith("```json"):
             raw_output = raw_output[7:-3]
 
@@ -74,7 +70,6 @@ def parse_query_with_gemini(user_query):
             else:
                 print(f"Warning: Ignoring unknown key '{key}'")
 
-        # Ensure purpose_property is valid
         if "purpose_property" not in cleaned or cleaned["purpose_property"] not in ALLOWED_PARAMS["purpose_property"]:
             cleaned["purpose_property"] = "for-rent"
 
@@ -85,17 +80,14 @@ def parse_query_with_gemini(user_query):
         return {"purpose_property": "for-rent"}
 
 
-# At the top of build_find_properties_url
+#-------------------------------- BUILD FIND PROPERTIES URL -------------------------------
 def build_find_properties_url(params):
-    # Convert string to dict if needed
     if isinstance(params, str):
         try:
             params = json.loads(params)
         except Exception as e:
             print("Error parsing params string:", e)
             return None
-
-    # Base URL
     base_url = "https://findproperties.ae/"
 
     # --- Purpose ---
