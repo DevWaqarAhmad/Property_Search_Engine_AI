@@ -1,5 +1,4 @@
 from re import search
-
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -11,18 +10,21 @@ import pandas as pd
 import json
 import time
 import random
-from query import generate_find_properties_url
+from query import build_find_properties_url
+from bs4 import BeautifulSoup
+from query import parse_query_with_gemini
 
-my_query = "for sale villa in 6 bedrooms"
+my_query = "i want a villa in sharjah with 4 bedrooms"
 min_price= ""
-max_price = "100,000"
-bathrooms = "4"
+max_price = ""
+bathrooms = "3"
 print("------------------------------")
-URL = generate_find_properties_url(my_query)
+parsed_params = parse_query_with_gemini(my_query)
+URL = build_find_properties_url(parsed_params)
 print(URL)
 print("==============================")
 #URL ="https://findproperties.ae/for-rent/properties/uae"
-search_location = "abu dhabi"
+search_location = "sharjah"
 
 
 st_time = time.time()
@@ -214,32 +216,70 @@ except Exception as e:
     exit()
 
 # ------------------------- Find all listing containers ----------------------------------
-listings = driver.find_elements(By.XPATH, '//div[contains(@class, "listing-list")]')
+#listings = driver.find_elements(By.XPATH, '//div[contains(@class, "listing-list")]')
 
+# ------------------------- BS4 Parsing Section --------------------------
 
-# --- Optional: Print first few to confirm ---
-# for i, listing in enumerate(listings[:5]):
-#     print(f"  {i+1}. Listing ID: {listing.get_attribute('class')}")
+html = driver.page_source
+soup = BeautifulSoup(html, 'html.parser')
 data = []
+
+listings = soup.find_all('div', class_='listing-body')
 
 for listing in listings:
     try:
-        title = listing.find_element(By.XPATH, './/h2[@class="listing-title"]//a').text.strip()
-        price_text = listing.find_element(By.XPATH, './/span[@class="listing-price"]').text.strip()
-        location = listing.find_element(By.XPATH, './/div[contains(@class, "listing-title flex location")]//h3').text.strip()
-        url = listing.find_element(By.XPATH, './/h2[@class="listing-title"]//a').get_attribute('href')
+        # Price: <span class="listing-price"> se
+        price_span = listing.find('span', class_='listing-price')
+        price = price_span.get_text(strip=True).split("AED")[0].strip() + " AED" if price_span else "N/A"
 
-        # ✅ Bina filter ke sabhi listings ko add karo
+        # Title: <h2 class="listing-title"> > <a> tag se
+        title_tag = listing.find('h2', class_='listing-title')
+        if title_tag and title_tag.find('a'):
+            title = title_tag.get_text(strip=True).replace("***", "").strip()
+            # URL banate waqt full link bana rahe hain
+            url = "https://findproperties.ae" + title_tag.find('a')['href']
+        else:
+            title = "N/A"
+            url = "N/A"
+
+        # Location: <div class="listing-title flex location"> se
+        location_div = listing.find('div', class_='listing-title flex location')
+        location = location_div.get_text(strip=True) if location_div else "N/A"
         data.append({
             "Title": title,
-            "Price": price_text,
+            "Price": price,
             "Location": location,
             "URL": url
         })
 
     except Exception as e:
-        print("Error extracting data:", e)
+        print("Error extracting listing:", e)
         continue
+# # --- Optional: Print first few to confirm ---
+# # for i, listing in enumerate(listings[:5]):
+# #     print(f"  {i+1}. Listing ID: {listing.get_attribute('class')}")
+# data = []
+
+# for listing in listings:
+#     try:
+#         title = listing.find_element(By.XPATH, './/h2[@class="listing-title"]//a').text.strip()
+#         price_text = listing.find_element(By.XPATH, './/span[@class="listing-price"]').text.strip()
+#         location = listing.find_element(By.XPATH, './/div[contains(@class, "listing-title flex location")]//h3').text.strip()
+#         url = listing.find_element(By.XPATH, './/h2[@class="listing-title"]//a').get_attribute('href')
+
+#         # ✅ Bina filter ke sabhi listings ko add karo
+#         data.append({
+#             "Title": title,
+#             "Price": price_text,
+#             "Location": location,
+#             "URL": url
+#         })
+
+#     except Exception as e:
+#         print("Error extracting data:", e)
+#         continue
+
+
 #-----------------DATA FRAME CREATION----------------------------
 df = pd.DataFrame(data)
 print(df.to_string(index=False))
