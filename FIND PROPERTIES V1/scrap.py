@@ -14,17 +14,26 @@ from query import build_find_properties_url
 from bs4 import BeautifulSoup
 from query import parse_query_with_gemini
 
-my_query = "i want a villa in sharjah"
-min_price= ""
-max_price = "400000"
-bathrooms = "3"
+my_query = "i want a rent apartment in dubai with 3 bedrooms and 3 baths from 60,000AED to 100,000"
 print("------------------------------")
 parsed_params = parse_query_with_gemini(my_query)
 URL = build_find_properties_url(parsed_params)
 print(URL)
 print("==============================")
-#URL ="https://findproperties.ae/for-rent/properties/uae"
+# min_price= ""
+# max_price = ""
+# bathrooms = ""
+min_price = parsed_params.get("min_price", "")
+max_price = parsed_params.get("max_price", "")
+bathrooms = parsed_params.get("baths", "")
 search_location = "sharjah"
+
+#URL ="https://findproperties.ae/for-rent/properties/uae"
+
+print(f"   Min Price: {min_price}")
+print(f"   Max Price: {max_price}") 
+print(f"   Bathrooms: {bathrooms}")
+print("==============================")
 
 
 st_time = time.time()
@@ -186,6 +195,9 @@ if max_price is not None:
 
 #------------------BATHROOMS COUNT-------------
 
+# Ye code aapke existing code mein replace karein - bathrooms filter ke baad
+
+#------------------BATHROOMS COUNT-------------
 if bathrooms is not None:
     try:
         dropdown = wait.until(
@@ -202,6 +214,40 @@ if bathrooms is not None:
 
     except Exception as e:
         print("❌ Could not set bathroom filter:", e)
+
+# ================ FILTERED RESULTS WAIT ================
+
+print("⏳ Waiting for filtered results to load...")
+
+# Wait for filters to process
+time.sleep(5)
+
+# Wait for page to be completely loaded
+try:
+    WebDriverWait(driver, 15).until(
+        lambda driver: driver.execute_script("return document.readyState") == "complete"
+    )
+    print("✅ Page loading complete")
+except:
+    print("⚠️ Page load timeout")
+
+# Double check - wait for results to stabilize  
+time.sleep(3)
+print("✅ Ready to scrape filtered results")
+
+
+# --------------- Wait for the property list container to appear ----------------------------------
+try:
+    WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.XPATH, '//div[contains(@class, "listing-list")]'))
+    )
+    print("✅ Listing containers loaded.")
+    print('Loading Time:', time.time() - st_time)
+except Exception as e:
+    print("❌ Timeout: Listing containers not found:", str(e))
+    print("Page source snippet:", driver.page_source[:1000])
+    driver.quit()
+    exit()
 # --------------- Wait for the property list container to appear ----------------------------------
 try:
     WebDriverWait(driver, 20).until(
@@ -227,10 +273,11 @@ listings = soup.find_all('div', class_='listing-body')
 
 for listing in listings:
     try:
-
+        # Price
         price_span = listing.find('span', class_='listing-price')
         price = price_span.get_text(strip=True).split("AED")[0].strip() + " AED" if price_span else "N/A"
 
+        # Title & URL
         title_tag = listing.find('h2', class_='listing-title')
         if title_tag and title_tag.find('a'):
             title = title_tag.get_text(strip=True).replace("***", "").strip()
@@ -239,32 +286,31 @@ for listing in listings:
             title = "N/A"
             url = "N/A"
 
+        # Location
         location_div = listing.find('div', class_='listing-title flex location')
-        location = location_div.get_text(strip=True) if location_div else "N/A"
+        location_text = location_div.get_text(strip=True) if location_div else "N/A"
 
-        icons = listing.find_all('div', class_='acr-listing-icon')  
+        # ✅ Filter: Only include if location contains "sharjah" (case-insensitive)
+        if "sharjah" not in location_text.lower():
+            print(f"Skipped (not in Sharjah): {location_text}")
+            continue
 
-        bedrooms = "N/A"
-        bathrooms = "N/A"
-        area_sqft = "N/A"
-
+        # Icons: Beds, Bathrooms, Area
+        icons = listing.find_all('div', class_='acr-listing-icon')
+        bedrooms = bathrooms = area_sqft = "N/A"
         for icon in icons:
             title_attr = icon.get('title', '').strip()
             value_span = icon.find('span', class_='acr-listing-icon-value')
             value = value_span.get_text(strip=True) if value_span else "N/A"
+            if title_attr == "Beds": bedrooms = value
+            elif title_attr == "Bathrooms": bathrooms = value
+            elif title_attr == "Square Feet": area_sqft = value
 
-            if title_attr == "Beds":
-                bedrooms = value
-            elif title_attr == "Bathrooms":
-                bathrooms = value
-            elif title_attr == "Square Feet":
-                area_sqft = value
-
-
+        # Add to data
         data.append({
             "Title": title,
             "Price": price,
-            "Location": location,
+            "Location": location_text,
             "URL": url,
             "Bedrooms": bedrooms,
             "Bathrooms": bathrooms,
