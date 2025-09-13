@@ -1,18 +1,19 @@
-from re import search
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
-import pandas as pd
-import json
 import time
 import random
+import json
 
-URL = "https://www.propertyfinder.ae/en/search?l=1&c=1&fu=0&ob=mr"
-search_location = "Abu dhabi"
+# ===================================HARD CODED VARIABLES======================================
+URL = "https://www.propertyfinder.ae/en/search?l=1&c=2&fu=0&rp=y&ob=mr"
+search_location = "Sharjah"
+
 USER_AGENTS = [
 
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
@@ -57,30 +58,127 @@ USER_AGENTS = [
     "Mozilla/5.0 (PlayStation 5 3.20) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15",
     "Mozilla/5.0 (Nintendo Switch; WifiWebAuthApplet) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15"
 ]
-#------------------ CHROME OPTIONS ----------------------
-def get_chrome_options():
-    options = Options()
-    user_agent = random.choice(USER_AGENTS)
-    options.add_argument(f'user-agent={user_agent}')
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    options.add_argument("--disable-extensions")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-infobars")
-    options.add_argument("--disable-notifications")
-    options.add_argument("--disable-gpu")
-    # options.add_argument("--window-size=1920,1080")
-    #options.add_argument("--headless")
 
-    return options
+start_time = time.time()
 
-#------------------ WEBSITE PAGE OPENING ----------------------
-chrome_options = get_chrome_options()
-# Initialize the Chrome driver with webdriver-manager
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(service=service, options=chrome_options)
-driver.get(URL)
+#==========================================CHROME SETUP=============================================
 
+options = Options()
+options.add_argument(f'user-agent={random.choice(USER_AGENTS)}')
+options.add_argument('--window-size=1920,1080')
+options.add_argument('--disable-blink-features=AutomationControlled')
+options.add_experimental_option("excludeSwitches", ["enable-automation"])
+options.add_experimental_option('useAutomationExtension', False)
+options.add_argument("--disable-notifications")
+options.add_argument("--no-sandbox")
+
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+driver.maximize_window()
 wait = WebDriverWait(driver, 10)
+
+print("Opening PropertyFinder...")
+driver.get(URL)
+time.sleep(2)
+
+#============================================= Step 1: Click location filter ===================
+try:
+    location_element = wait.until(EC.element_to_be_clickable((By.XPATH, '//div[@data-testid="autocomplete"]')))
+    location_element.click()
+    print("✅ Location filter opened")
+    time.sleep(2)
+except Exception as e:
+    print(f"❌ Could not open location filter: {e}")
+    driver.quit()
+    exit()
+
+#==================================Step 2: Remove Dubai chip===============================================
+
+try:
+    dubai_chip = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@data-testid="autocomplete-tag"]')))
+    dubai_chip.click()
+    print("✅ Removed Dubai chip")
+    time.sleep(1)
+except Exception as e:
+    print(f"❌ Could not remove Dubai: {e}")
+    driver.quit()
+    exit()
+
+#===================================== Step 3: Enter location and select suggestion ================================
+try:
+    # Find and focus input field
+    location_input = wait.until(EC.presence_of_element_located(
+        (By.XPATH, '//input[@placeholder="City, community or building"]')
+    ))
+    location_input.click()
+    location_input.clear()
+    time.sleep(0.5)
+    
+    # Type location slowly
+    for char in search_location:
+        location_input.send_keys(char)
+        time.sleep(0.1)
+    
+    print(f"✅ Typed: {search_location}")
+    time.sleep(2)
+    
+    # Click first suggestion
+    try:
+        first_suggestion = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, '//button[@data-testid="autocomplete-option"][1]')
+        ))
+        first_suggestion.click()
+        print("✅ Selected first suggestion")
+    except:
+        # Fallback: keyboard navigation
+        location_input.send_keys(Keys.ARROW_DOWN)
+        location_input.send_keys(Keys.ENTER)
+        print("✅ Used keyboard navigation")
+    
+    time.sleep(2)
+    
+except Exception as e:
+    print(f"❌ Location selection failed: {e}")
+    driver.quit()
+    exit()
+
+#=================================Step 4: Click Find button=======================================
+
+try:
+    find_button = wait.until(EC.element_to_be_clickable(
+        (By.XPATH, '//button[@data-testid="filters-form-btn-find"]')
+    ))
+    find_button.click()
+    print("✅ Clicked FIND button")
+    time.sleep(3)
+except Exception as e:
+    print(f"❌ Could not click FIND: {e}")
+    driver.quit()
+    exit()
+
+
+
+#============================== Step 5: Count total properties =================================================
+
+try:
+    print("Counting properties...")
+    time.sleep(2)
+    
+    property_containers = driver.find_elements(By.XPATH, '//li[@role="listitem"]')
+    total_count = len(property_containers)
+    
+    print(f"Total {total_count} properties in page")
+    
+except Exception as e:
+    print(f"Could not count properties: {e}")
+
+
+
+#=======================================================MAJOR PART IS PARSING BY JSON============================================
+
+
+
+
+print("🎉 Search completed successfully!")
+print(f"Total time: {time.time() - start_time:.2f}")
+time.sleep(5)
+driver.quit()
