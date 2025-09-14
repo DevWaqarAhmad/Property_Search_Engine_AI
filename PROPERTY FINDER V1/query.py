@@ -107,6 +107,9 @@ def build_propertyfinder_url(params):
     purpose = params.get("purpose_property", "").lower()
     property_type = params.get("property_type", "").lower()
     bedrooms_input = params.get("bedrooms", "")
+    baths_input = params.get("baths", "")
+    min_price = params.get("min_price", "")
+    max_price = params.get("max_price", "")
 
     buy_terms = ["buy", "sale", "for sale", "available", "purchase"]
     rent_terms = ["rent", "for rent", "rental", "leasing", "to rent"]
@@ -138,6 +141,17 @@ def build_propertyfinder_url(params):
         "7+": "7&bdr[]=8"
     }
 
+    bath_map = {
+        "1": "1",
+        "2": "2",
+        "3": "3",
+        "4": "4",
+        "5": "5",
+        "6": "6",
+        "7": "7",
+        "7+": "8"
+    }
+
     if any(term in purpose for term in buy_terms):
         t_value = type_map.get(property_type, "1")
         t_param = f"&t={t_value}" if t_value else ""
@@ -155,7 +169,20 @@ def build_propertyfinder_url(params):
                         bdr_params.append(f"bdr[]={val}")
         bdr_string = "&".join(bdr_params) if bdr_params else ""
 
-        return f"https://www.propertyfinder.ae/en/search?l=1&c=1{t_param}{('&' + bdr_string) if bdr_string else ''}&fu=0&ob=mr"
+        btr_params = []
+        if baths_input:
+            baths_list = [b.strip() for b in baths_input] if isinstance(baths_input, list) else [b.strip() for b in baths_input.split(",")]
+            for b in baths_list:
+                if b in bath_map:
+                    btr_params.append(f"btr[]={bath_map[b]}")
+        btr_string = "&".join(btr_params) if btr_params else ""
+
+        price_parts = []
+        if min_price: price_parts.append(f"pf={min_price}")
+        if max_price: price_parts.append(f"pt={max_price}")
+        price_string = "&".join(price_parts)
+
+        return f"https://www.propertyfinder.ae/en/search?l=1&c=1{t_param}{('&' + bdr_string) if bdr_string else ''}{('&' + btr_string) if btr_string else ''}{('&' + price_string) if price_string else ''}&fu=0&ob=mr"
 
     elif any(term in purpose for term in rent_terms):
         t_value = type_map.get(property_type, "")
@@ -174,21 +201,35 @@ def build_propertyfinder_url(params):
                         bdr_params.append(f"bdr[]={val}")
         bdr_string = "&".join(bdr_params) if bdr_params else ""
 
-        return f"https://www.propertyfinder.ae/en/search?l=1&c=2{t_param}{('&' + bdr_string) if bdr_string else ''}&fu=0&rp=y&ob=mr"
+        btr_params = []
+        if baths_input:
+            baths_list = [b.strip() for b in baths_input] if isinstance(baths_input, list) else [b.strip() for b in baths_input.split(",")]
+            for b in baths_list:
+                if b in bath_map:
+                    btr_params.append(f"btr[]={bath_map[b]}")
+        btr_string = "&".join(btr_params) if btr_params else ""
+
+        price_parts = []
+        if min_price: price_parts.append(f"pf={min_price}")
+        if max_price: price_parts.append(f"pt={max_price}")
+        price_string = "&".join(price_parts)
+
+        return f"https://www.propertyfinder.ae/en/search?l=1&c=2{t_param}{('&' + bdr_string) if bdr_string else ''}{('&' + btr_string) if btr_string else ''}{('&' + price_string) if price_string else ''}&fu=0&rp=y&ob=mr"
 
     else:
         return "https://www.propertyfinder.ae/en/search?l=1&c=2&fu=0&rp=y&ob=mr"
 
+
 # --------------------- TEST THE QUERY TO url ----------------------------------------------
 
-query = "I want to buy a 7+ bedroom whole building in Ras Al Khaimah"
-paras = parse_query_with_gemini(query)
-print('------------Started---------------')
-print(paras)
-print('-----------------------------------spliter 1 --------------------------')
-my_url = build_propertyfinder_url(paras)
-print('-----------------------------------spliter 2 --------------------------')
-print(my_url)
+# query = "Buy a 7+ bed whole building in Dubai, minimum 10M AED"
+# paras = parse_query_with_gemini(query)
+# print('------------Started---------------')
+# print(paras)
+# print('-----------------------------------spliter 1 --------------------------')
+# my_url = build_propertyfinder_url(paras)
+# print('-----------------------------------spliter 2 --------------------------')
+# print(my_url)
 #https://findproperties.ae/for-rent/4-bedroom-villa/uae
 
 
