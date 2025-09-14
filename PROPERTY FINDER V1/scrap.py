@@ -17,10 +17,9 @@ import pandas as pd
 
 # ===================================HARD CODED VARIABLES======================================
 URL = "https://www.propertyfinder.ae/en/search?l=1&c=2&fu=0&rp=y&ob=mr"
-search_location = "ras al khaimah"
+search_location = "ajman"
 
 USER_AGENTS = [
-
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6943.99 Safari/537.36",
@@ -146,6 +145,12 @@ except Exception as e:
     driver.quit()
     exit()
 
+#=================================== NEW: REFRESH PAGE AFTER LOCATION SELECTION ===================================
+print("🔄 Refreshing page after location selection...")
+driver.refresh()
+time.sleep(5)  # Wait for page to reload completely
+print("✅ Page refreshed successfully")
+
 #=================================Step 4: Click Find button=======================================
 
 # try:
@@ -177,14 +182,14 @@ except Exception as e:
     print(f"Could not count properties: {e}")
 
 # ===================== SMART WAIT FOR DYNAMIC FILTER APPLY =====================
-try:
-    # Wait until number of property cards changes from initial count (or > 0)
-    WebDriverWait(driver, 15).until(
-        lambda d: len(d.find_elements(By.XPATH, '//li[@role="listitem"]')) > 0
-    )
-    print("✅ Filter applied — new properties loaded")
-except TimeoutException:
-    print("❌ Filter failed — no properties loaded after click")
+# try:
+#     # Wait until number of property cards changes from initial count (or > 0)
+#     WebDriverWait(driver, 15).until(
+#         lambda d: len(d.find_elements(By.XPATH, '//li[@role="listitem"]')) > 0
+#     )
+#     print("✅ Filter applied — new properties loaded")
+# except TimeoutException:
+#     print("❌ Filter failed — no properties loaded after click")
 
 #=======================================================MAJOR PART IS PARSING BY JSON============================================
 # ===================== JSON PARSING PART (FINAL) =====================
