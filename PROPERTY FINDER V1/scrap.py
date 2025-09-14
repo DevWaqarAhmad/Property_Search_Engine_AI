@@ -6,13 +6,18 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.common.exceptions import TimeoutException
 import time
 import random
 import json
+import requests
+from bs4 import BeautifulSoup
+import re
+import pandas as pd
 
 # ===================================HARD CODED VARIABLES======================================
 URL = "https://www.propertyfinder.ae/en/search?l=1&c=2&fu=0&rp=y&ob=mr"
-search_location = "Sharjah"
+search_location = "ras al khaimah"
 
 USER_AGENTS = [
 
@@ -143,17 +148,17 @@ except Exception as e:
 
 #=================================Step 4: Click Find button=======================================
 
-try:
-    find_button = wait.until(EC.element_to_be_clickable(
-        (By.XPATH, '//button[@data-testid="filters-form-btn-find"]')
-    ))
-    find_button.click()
-    print("✅ Clicked FIND button")
-    time.sleep(3)
-except Exception as e:
-    print(f"❌ Could not click FIND: {e}")
-    driver.quit()
-    exit()
+# try:
+#     find_button = wait.until(EC.element_to_be_clickable(
+#         (By.XPATH, '//button[@data-testid="filters-form-btn-find"]')
+#     ))
+#     find_button.click()
+#     print("✅ Clicked FIND button")
+#     time.sleep(3)
+# except Exception as e:
+#     print(f"❌ Could not click FIND: {e}")
+#     driver.quit()
+#     exit()
 
 
 
@@ -171,13 +176,46 @@ try:
 except Exception as e:
     print(f"Could not count properties: {e}")
 
-
+# ===================== SMART WAIT FOR DYNAMIC FILTER APPLY =====================
+try:
+    # Wait until number of property cards changes from initial count (or > 0)
+    WebDriverWait(driver, 15).until(
+        lambda d: len(d.find_elements(By.XPATH, '//li[@role="listitem"]')) > 0
+    )
+    print("✅ Filter applied — new properties loaded")
+except TimeoutException:
+    print("❌ Filter failed — no properties loaded after click")
 
 #=======================================================MAJOR PART IS PARSING BY JSON============================================
+# ===================== JSON PARSING PART (FINAL) =====================
+time.sleep(8)
 
+html = driver.page_source
+soup = BeautifulSoup(html, 'html.parser')
+script = soup.find('script', id='__NEXT_DATA__', type='application/json')
 
+if script:
+    json_data = json.loads(script.string)
+    try:
+        props = json_data['props']['pageProps']['searchResult']['properties']
+        data = []
+        for p in props:
+            data.append([
+                p.get('title', ''),
+                p.get('price', {}).get('value', '') if isinstance(p.get('price'), dict) else '',
+                p.get('location', {}).get('full_name', ''),
+                p.get('bedrooms', ''),
+                p.get('bathrooms', ''),
+                p.get('sizeInSqFt', '')  # <-- area in sqft
+            ])
+        df = pd.DataFrame(data, columns=['Title', 'Price', 'Location', 'Bedrooms', 'Bathrooms', 'Area'])
+        print(df)
+    except KeyError as e:
+        print(f"❌ Key error: {e}")
+else:
+    print("❌ __NEXT_DATA__ not found")
 
-
+#=============================ENDING PROJECT HERE============================
 print("🎉 Search completed successfully!")
 print(f"Total time: {time.time() - start_time:.2f}")
 time.sleep(5)
