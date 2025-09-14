@@ -14,9 +14,17 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
+from query import build_propertyfinder_url, parse_query_with_gemini
 
 # ===================================HARD CODED VARIABLES======================================
-URL = "https://www.propertyfinder.ae/en/search?l=1&c=2&fu=0&rp=y&ob=mr"
+#URL = "https://www.propertyfinder.ae/en/search?l=1&c=2&fu=0&rp=y&ob=mr"
+
+my_query = "3 bedroom apartment for rent"
+print("------------------------------")
+parsed_params = parse_query_with_gemini(my_query)
+URL = build_propertyfinder_url(parsed_params)
+print(URL)
+print("==============================")
 search_location = "ajman"
 
 USER_AGENTS = [
