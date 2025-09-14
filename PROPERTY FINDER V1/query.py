@@ -14,15 +14,15 @@ model = genai.GenerativeModel("gemini-2.0-flash")
 def parse_query_with_gemini(user_query):
     # --- Allowed parameters ---
     ALLOWED_PARAMS = {
-        "purpose_property": ['to-rent', 'for-sale'],
-        "property_type": ['apartments', 'townhouses', 'villa-compound', 'residential-plots',
-                                      'residential-building', 'villas', 'penthouse', 'hotel-apartments', 'residential-floors',
+        "purpose_property": ['rent', 'sale'],
+        "property_type": ['apartment', 'townhouse', 'compound', 'duplex',
+                                      'full floor', 'villa', 'penthouse', 'half floor', 'whole building',
                                       'warehouses', 'commercial-villas', 'commercial-plots', 'commercial-buildings',
                                       'industrial-land', 'showrooms', 'shops', 'labour-camps', 'bulk-units',
-                                      'commercial-floors', 'factories', 'mixed-use-land', 'commerical-properties'
+                                      'bulk rent unit', 'bungalow', 'hotel and hotel apartment', 'commerical-properties'
                                       ],
-        "bedrooms": ['studio', '1', '2', '3', '4', '5', '6', '7', '8+'],
-        "baths": ['1', '2', '3', '4', '5', '6+']
+        "bedrooms": ['studio', '1', '2', '3', '4', '5', '6', '7', '7+'],
+        "baths": ['1', '2', '3', '4', '5', '7','7+']
     }
 
     # --- Prompt to guide the LLM ---
@@ -103,18 +103,90 @@ def parse_query_with_gemini(user_query):
 
 #------------------------FUNCTION PARAMS TO URL---------------------------------------------------
 
+def build_propertyfinder_url(params):
+    purpose = params.get("purpose_property", "").lower()
+    property_type = params.get("property_type", "").lower()
+    bedrooms_input = params.get("bedrooms", "")
 
-def build_property_finder_url(params):
+    buy_terms = ["buy", "sale", "for sale", "available", "purchase"]
+    rent_terms = ["rent", "for rent", "rental", "leasing", "to rent"]
 
+    type_map = {
+        "apartment": "1",
+        "villa": "35",
+        "townhouse": "22",
+        "penthouse": "20",
+        "compound": "42",
+        "duplex": "24",
+        "full floor": "18",
+        "half floor": "29",
+        "whole building": "10",
+        "bulk rent unit": "34",
+        "bungalow": "31",
+        "hotel and hotel apartment": "45"
+    }
+
+    bed_map = {
+        "studio": "0",
+        "1": "1",
+        "2": "2",
+        "3": "3",
+        "4": "4",
+        "5": "5",
+        "6": "6",
+        "7": "7",
+        "7+": "7&bdr[]=8"
+    }
+
+    if any(term in purpose for term in buy_terms):
+        t_value = type_map.get(property_type, "1")
+        t_param = f"&t={t_value}" if t_value else ""
+
+        bdr_params = []
+        if bedrooms_input:
+            beds_list = [b.strip() for b in bedrooms_input] if isinstance(bedrooms_input, list) else [b.strip() for b in bedrooms_input.split(",")]
+            for b in beds_list:
+                if b in bed_map:
+                    val = bed_map[b]
+                    if "8" in val:
+                        bdr_params.append("bdr[]=7")
+                        bdr_params.append("bdr[]=8")
+                    else:
+                        bdr_params.append(f"bdr[]={val}")
+        bdr_string = "&".join(bdr_params) if bdr_params else ""
+
+        return f"https://www.propertyfinder.ae/en/search?l=1&c=1{t_param}{('&' + bdr_string) if bdr_string else ''}&fu=0&ob=mr"
+
+    elif any(term in purpose for term in rent_terms):
+        t_value = type_map.get(property_type, "")
+        t_param = f"&t={t_value}" if t_value else ""
+
+        bdr_params = []
+        if bedrooms_input:
+            beds_list = [b.strip() for b in bedrooms_input] if isinstance(bedrooms_input, list) else [b.strip() for b in bedrooms_input.split(",")]
+            for b in beds_list:
+                if b in bed_map:
+                    val = bed_map[b]
+                    if "8" in val:
+                        bdr_params.append("bdr[]=7")
+                        bdr_params.append("bdr[]=8")
+                    else:
+                        bdr_params.append(f"bdr[]={val}")
+        bdr_string = "&".join(bdr_params) if bdr_params else ""
+
+        return f"https://www.propertyfinder.ae/en/search?l=1&c=2{t_param}{('&' + bdr_string) if bdr_string else ''}&fu=0&rp=y&ob=mr"
+
+    else:
+        return "https://www.propertyfinder.ae/en/search?l=1&c=2&fu=0&rp=y&ob=mr"
 
 # --------------------- TEST THE QUERY TO url ----------------------------------------------
 
-test_query = "i want a villa in sharjah with 4 bedrooms"
-paras = parse_query_with_gemini(test_query)
+query = "I want to buy a 7+ bedroom whole building in Ras Al Khaimah"
+paras = parse_query_with_gemini(query)
 print('------------Started---------------')
 print(paras)
 print('-----------------------------------spliter 1 --------------------------')
-my_url = build_property_finder_url(paras)
+my_url = build_propertyfinder_url(paras)
 print('-----------------------------------spliter 2 --------------------------')
 print(my_url)
 #https://findproperties.ae/for-rent/4-bedroom-villa/uae
