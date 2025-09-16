@@ -14,6 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
+from query import parse_query_with_gemini, build_dubbizle_url
 
 
 
@@ -187,8 +188,102 @@ else:
 
 
 #============================== Step 3: Count total properties =================================================
+try:
+    time.sleep(2)
+    
+    # Smart selector - finds actual property cards
+    selectors = [
+        '//div[contains(@class, "property-lpv-card")]',
+        '//div[contains(text(), "AED")]//ancestor::div[contains(@class, "MuiBox") or contains(@class, "card")][1]',
+        '//a[contains(@href, "/property/")]//parent::div'
+    ]
+    
+    cards = []
+    for selector in selectors:
+        cards = driver.find_elements(By.XPATH, selector)
+        if cards: break
+    
+    # Count only displayed property cards with valid content
+    count = len([c for c in cards if c.is_displayed() and 
+                any(kw in c.text.lower() for kw in ['aed', 'bedroom']) and 
+                len(c.text.strip()) > 50])
+    
+    print(f"✅ Found {count} properties on first page")
+    
+except Exception as e:
+    print(f"❌ Could not count: {e}")
 
-# ==================================== JSON PARSING PART (FINAL) =================================
+
+# ==================================== BS4 PARSING PART (FINAL) WITH PANDAS =================================
+
+# Wait for JavaScript to fully render property cards
+time.sleep(8)
+
+# Get the fully rendered HTML
+html = driver.page_source
+soup = BeautifulSoup(html, 'html.parser')
+
+# DIAGNOSTIC CHECK: Confirm we're on the correct page
+current_url = driver.current_url
+print(f"🌐 Current URL: {current_url}")
+
+if "blog" in current_url or "sharjah.dubizzle.com/en/property-for-rent/residential/" not in current_url:
+    print("❌ CRITICAL ERROR: Page redirected to blog or did not load property listings.")
+    print("   Aborting parsing — data is invalid.")
+    driver.quit()
+    exit()
+
+# Extract property data
+properties = []
+
+for card in soup.select('a[href*="/property/"]'):
+    # Title
+    title_elem = card.find('h2', {'data-testid': 'subheading-text'})
+    title = title_elem.get_text(strip=True) if title_elem else None
+
+    # Price
+    price_elem = card.find('div', {'data-testid': 'listing-price'})
+    price = price_elem.get_text(strip=True) if price_elem else None
+
+    # Location
+    loc_elem = card.find('div', class_='location')
+    location = loc_elem.get_text(strip=True) if loc_elem else None
+
+    # Beds, Baths, Area
+    features_div = card.find('div', class_='features')
+    beds = baths = area = None
+    if features_div:
+        for span in features_div.find_all('span', class_='feature'):
+            text = span.get_text(strip=True).lower()
+            if 'bed' in text:
+                beds = span.get_text(strip=True)
+            elif 'bath' in text:
+                baths = span.get_text(strip=True)
+            elif 'sqft' in text or 'sqm' in text:
+                area = span.get_text(strip=True)
+
+    # URL
+    url = card.get('href')
+    if url and not url.startswith('http'):
+        url = 'https://sharjah.dubizzle.com' + url
+
+    properties.append({
+        'title': title,
+        'price': price,
+        'location': location,
+        'beds': beds,
+        'baths': baths,
+        'area': area,
+        'url': url
+    })
+
+# Convert to DataFrame
+df = pd.DataFrame(properties)
+
+# Display DataFrame
+print(df)
+
+print(f"\n✅ Extracted {len(df)} property listings into DataFrame.")
 
 #============================================== ENDING PROJECT HERE============================
 print("🎉 Search completed successfully!")
