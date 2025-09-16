@@ -264,7 +264,18 @@ finally:
     print("Script finished (you can close driver manually).")
     # driver.quit()
 
+# -------------------- PROPERTY CARDS FOUND -------------
 
+html = driver.page_source
+soup = BeautifulSoup(html, 'html.parser')
+
+card_container = soup.find('div', class_='zena-search-results-container')
+if card_container:
+    property_cards = card_container.find_all('div', class_='mx-auto bg-white rounded-lg border border-gray-200 p-0.5 lg:p-0 mb-4 lg:mb-8 max-w-[550px] lg:max-w-none')
+    total_properties = len(property_cards)
+    print(f'TOTEL PROPERTIES ARE: ', {total_properties})
+else:
+    print(0)
 #-----------------DATA FRAME CREATION----------------------------
 # df = pd.DataFrame(data)
 # print(df.to_string(index=False))
