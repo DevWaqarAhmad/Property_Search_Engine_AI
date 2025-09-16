@@ -14,6 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
+from selenium.webdriver.common.action_chains import ActionChains
 
 
 
@@ -26,7 +27,7 @@ URL = "https://sharjah.dubizzle.com/en/property-for-rent/residential/"
 # URL = build_propertyfinder_url(parsed_params)
 # print(URL)
 # print("==============================")
-search_location = "ajman"
+search_location = "dubai"
 
 #================================= USER AGENTS ====================================
 USER_AGENTS = [
@@ -85,25 +86,139 @@ options.add_experimental_option("excludeSwitches", ["enable-automation"])
 options.add_experimental_option('useAutomationExtension', False)
 options.add_argument("--disable-notifications")
 options.add_argument("--no-sandbox")
+#options.add_argument("--headless")
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 driver.maximize_window()
 wait = WebDriverWait(driver, 10)
 
-print("Opening PropertyFinder...")
+print("Opening Dubizzle.......")
 driver.get(URL)
-time.sleep(2)
+#time.sleep(2)
 
 
 #============================================= Step 1: Click location filter ===================
-
-#==================================Step 2: Remove Dubai chip===============================================
+if not search_location:
+    print("⚠️ Location value is empty, skipping...")
+else:
+    try:
+        time.sleep(1)
+        location_input = wait.until(EC.element_to_be_clickable((By.ID, "location-autocomplete")))
+        location_input.click()
+        print("✅ Clicked on Location Input Field")
+    except Exception as e:
+        print(f"❌ Could not click location input: {e}")
+        print("🔄 Trying alternative selector...")
+        try:
+            # Try alternative selector
+            location_input = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@placeholder="Enter location"]')))
+            location_input.click()
+            print("✅ Clicked on Location Input Field (Alternative)")
+        except Exception as e2:
+            print(f"❌ Alternative selector failed: {e2}")
+            driver.quit()
+            exit()
 
 #===================================== Step 3: Enter location and select suggestion ================================
+if not search_location:
+    print("⚠️ Location value is empty, skipping...")
+else:
+    try:
+        location_input = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@id="location-autocomplete"]')))
+        location_input.click()
+        location_input.clear()
+        location_input.send_keys(search_location)
+        print(f"✅ Typed '{search_location}' into location input")
+        time.sleep(1)
+
+
+        #====================================================
+        # Step 3: Find the first suggestion that matches exactly or starts with search_location
+        try:
+            # Wait for listbox
+            listbox = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, '//div[@role="listbox"]'))
+            )
+
+            # Find first option that contains search_location (case-insensitive)
+            suggestion = listbox.find_element(By.XPATH, f'.//div[@role="option" and contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{search_location.lower()}")][1]')
+            
+            # Scroll into view and click
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", suggestion)
+            time.sleep(0.3)
+            suggestion.click()
+            print(f"✅ Selected suggestion: {suggestion.text}")
+
+        except Exception as e:
+            print(f"❌ Could not find or click suggestion: {e}")
+            # Fallback: Try arrow keys
+            try:
+                location_input.send_keys(Keys.ENTER)
+                print("✅ Fallback: Pressed Enter to select suggestion")
+            except:
+                print("❌ Fallback failed too")
+                pass
+
+    except Exception as e:
+        print(f"❌ Could not handle location input: {e}")
+        driver.quit()
+        exit()
+
+# if not search_location:
+#     print("⚠️ Skipping location")
+# else:
+#     try:
+#         loc = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@id="location-autocomplete"]')))
+#         loc.click()
+#         loc.clear()
+#         loc.send_keys(search_location)
+#         print(f"✅ Typed '{search_location}'")
+
+#         time.sleep(1)
+#         suggestion = driver.find_element(By.XPATH, '//div[@role="listbox"]//div[@role="option"][1]')
+#         driver.execute_script("arguments[0].scrollIntoView();", suggestion)
+#         suggestion.click()
+#         print("✅ Selected suggestion")
+#     except:
+#         loc.send_keys(Keys.ENTER)
+#         print("✅ Fallback: Pressed Enter")
+
+
+
+
 
 #============================== Step 3: Count total properties =================================================
+try:
+    time.sleep(2)
+    
+    # Smart selector - finds actual property cards
+    selectors = [
+        '//div[contains(@class, "property-lpv-card")]',
+        '//div[contains(text(), "AED")]//ancestor::div[contains(@class, "MuiBox") or contains(@class, "card")][1]',
+        '//a[contains(@href, "/property/")]//parent::div'
+    ]
+    
+    cards = []
+    for selector in selectors:
+        cards = driver.find_elements(By.XPATH, selector)
+        if cards: break
+    
+    # Count only displayed property cards with valid content
+    count = len([c for c in cards if c.is_displayed() and 
+                any(kw in c.text.lower() for kw in ['aed', 'bedroom']) and 
+                len(c.text.strip()) > 50])
+    
+    print(f"✅ Found {count} properties on first page")
+    
+except Exception as e:
+    print(f"❌ Could not count: {e}")
+
+
+
 
 # ==================================== JSON PARSING PART (FINAL) =================================
+
+
 
 #============================================== ENDING PROJECT HERE============================
 print("🎉 Search completed successfully!")

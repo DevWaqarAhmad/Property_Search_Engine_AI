@@ -14,19 +14,23 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
-from query import build_propertyfinder_url, parse_query_with_gemini
+from selenium.webdriver.common.action_chains import ActionChains
+from query import parse_query_with_gemini, build_dubbizle_url
+
+
 
 # ===================================HARD CODED VARIABLES======================================
-#URL = "https://www.propertyfinder.ae/en/search?l=1&c=2&fu=0&rp=y&ob=mr"
+URL = "https://sharjah.dubizzle.com/en/property-for-rent/residential/"
 
-my_query = "3 bedroom apartment for rent"
-print("------------------------------")
-parsed_params = parse_query_with_gemini(my_query)
-URL = build_propertyfinder_url(parsed_params)
-print(URL)
-print("==============================")
-search_location = "ajman"
+# my_query = "3 bedroom apartment for rent"
+# print("------------------------------")
+# parsed_params = parse_query_with_gemini(my_query)
+# URL = build_propertyfinder_url(parsed_params)
+# print(URL)
+# print("==============================")
+search_location = "dubai"
 
+#================================= USER AGENTS ====================================
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -83,152 +87,210 @@ options.add_experimental_option("excludeSwitches", ["enable-automation"])
 options.add_experimental_option('useAutomationExtension', False)
 options.add_argument("--disable-notifications")
 options.add_argument("--no-sandbox")
+#options.add_argument("--headless")
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 driver.maximize_window()
 wait = WebDriverWait(driver, 10)
 
-print("Opening PropertyFinder...")
+print("Opening Dubizzle.......")
 driver.get(URL)
-time.sleep(2)
+#time.sleep(2)
+
 
 #============================================= Step 1: Click location filter ===================
-try:
-    location_element = wait.until(EC.element_to_be_clickable((By.XPATH, '//div[@data-testid="autocomplete"]')))
-    location_element.click()
-    print("✅ Location filter opened")
-    time.sleep(2)
-except Exception as e:
-    print(f"❌ Could not open location filter: {e}")
-    driver.quit()
-    exit()
-
-#==================================Step 2: Remove Dubai chip===============================================
-
-try:
-    dubai_chip = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@data-testid="autocomplete-tag"]')))
-    dubai_chip.click()
-    print("✅ Removed Dubai chip")
-    time.sleep(1)
-except Exception as e:
-    print(f"❌ Could not remove Dubai: {e}")
-    driver.quit()
-    exit()
+if not search_location:
+    print("⚠️ Location value is empty, skipping...")
+else:
+    try:
+        time.sleep(1)
+        location_input = wait.until(EC.element_to_be_clickable((By.ID, "location-autocomplete")))
+        location_input.click()
+        print("✅ Clicked on Location Input Field")
+    except Exception as e:
+        print(f"❌ Could not click location input: {e}")
+        print("🔄 Trying alternative selector...")
+        try:
+            # Try alternative selector
+            location_input = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@placeholder="Enter location"]')))
+            location_input.click()
+            print("✅ Clicked on Location Input Field (Alternative)")
+        except Exception as e2:
+            print(f"❌ Alternative selector failed: {e2}")
+            driver.quit()
+            exit()
 
 #===================================== Step 3: Enter location and select suggestion ================================
-try:
-    # Find and focus input field
-    location_input = wait.until(EC.presence_of_element_located(
-        (By.XPATH, '//input[@placeholder="City, community or building"]')
-    ))
-    location_input.click()
-    location_input.clear()
-    time.sleep(0.5)
-    
-    # Type location slowly
-    for char in search_location:
-        location_input.send_keys(char)
-        time.sleep(0.1)
-    
-    print(f"✅ Typed: {search_location}")
-    time.sleep(2)
-    
-    # Click first suggestion
+if not search_location:
+    print("⚠️ Location value is empty, skipping...")
+else:
     try:
-        first_suggestion = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, '//button[@data-testid="autocomplete-option"][1]')
-        ))
-        first_suggestion.click()
-        print("✅ Selected first suggestion")
-    except:
-        # Fallback: keyboard navigation
-        location_input.send_keys(Keys.ARROW_DOWN)
-        location_input.send_keys(Keys.ENTER)
-        print("✅ Used keyboard navigation")
-    
+        location_input = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@id="location-autocomplete"]')))
+        location_input.click()
+        location_input.clear()
+        location_input.send_keys(search_location)
+        print(f"✅ Typed '{search_location}' into location input")
+        time.sleep(1)
+
+
+        #====================================================
+        # Step 3: Find the first suggestion that matches exactly or starts with search_location
+        try:
+            # Wait for listbox
+            listbox = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.XPATH, '//div[@role="listbox"]'))
+            )
+
+            # Find first option that contains search_location (case-insensitive)
+            suggestion = listbox.find_element(By.XPATH, f'.//div[@role="option" and contains(translate(text(), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "{search_location.lower()}")][1]')
+            
+            # Scroll into view and click
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", suggestion)
+            time.sleep(0.3)
+            suggestion.click()
+            print(f"✅ Selected suggestion: {suggestion.text}")
+
+        except Exception as e:
+            print(f"❌ Could not find or click suggestion: {e}")
+            # Fallback: Try arrow keys
+            try:
+                location_input.send_keys(Keys.ENTER)
+                print("✅ Fallback: Pressed Enter to select suggestion")
+            except:
+                print("❌ Fallback failed too")
+                pass
+
+    except Exception as e:
+        print(f"❌ Could not handle location input: {e}")
+        driver.quit()
+        exit()
+
+# if not search_location:
+#     print("⚠️ Skipping location")
+# else:
+#     try:
+#         loc = wait.until(EC.element_to_be_clickable((By.XPATH, '//input[@id="location-autocomplete"]')))
+#         loc.click()
+#         loc.clear()
+#         loc.send_keys(search_location)
+#         print(f"✅ Typed '{search_location}'")
+
+#         time.sleep(1)
+#         suggestion = driver.find_element(By.XPATH, '//div[@role="listbox"]//div[@role="option"][1]')
+#         driver.execute_script("arguments[0].scrollIntoView();", suggestion)
+#         suggestion.click()
+#         print("✅ Selected suggestion")
+#     except:
+#         loc.send_keys(Keys.ENTER)
+#         print("✅ Fallback: Pressed Enter")
+
+
+
+
+
+#============================== Step 3: Count total properties =================================================
+try:
     time.sleep(2)
+    
+    # Smart selector - finds actual property cards
+    selectors = [
+        '//div[contains(@class, "property-lpv-card")]',
+        '//div[contains(text(), "AED")]//ancestor::div[contains(@class, "MuiBox") or contains(@class, "card")][1]',
+        '//a[contains(@href, "/property/")]//parent::div'
+    ]
+    
+    cards = []
+    for selector in selectors:
+        cards = driver.find_elements(By.XPATH, selector)
+        if cards: break
+    
+    # Count only displayed property cards with valid content
+    count = len([c for c in cards if c.is_displayed() and 
+                any(kw in c.text.lower() for kw in ['aed', 'bedroom']) and 
+                len(c.text.strip()) > 50])
+    
+    print(f"✅ Found {count} properties on first page")
     
 except Exception as e:
-    print(f"❌ Location selection failed: {e}")
+    print(f"❌ Could not count: {e}")
+
+
+
+# ==================================== BS4 PARSING PART (FINAL) WITH PANDAS =================================
+
+# ==================================== BS4 PARSING PART (FINAL) WITH PANDAS =================================
+
+# Wait for JavaScript to fully render property cards
+time.sleep(8)
+
+# Get the fully rendered HTML
+html = driver.page_source
+soup = BeautifulSoup(html, 'html.parser')
+
+# DIAGNOSTIC CHECK: Confirm we're on the correct page
+current_url = driver.current_url
+print(f"🌐 Current URL: {current_url}")
+
+if "blog" in current_url or "sharjah.dubizzle.com/en/property-for-rent/residential/" not in current_url:
+    print("❌ CRITICAL ERROR: Page redirected to blog or did not load property listings.")
+    print("   Aborting parsing — data is invalid.")
     driver.quit()
     exit()
 
-#=================================== NEW: REFRESH PAGE AFTER LOCATION SELECTION ===================================
-print("🔄 Refreshing page after location selection...")
-driver.refresh()
-time.sleep(5)  # Wait for page to reload completely
-print("✅ Page refreshed successfully")
+# Extract property data using selectors from your screenshot
+properties = []
 
-#=================================Step 4: Click Find button=======================================
+for card in soup.select('a[href*="/property/"]'):
+    # Title
+    title_elem = card.find('h2', {'data-testid': 'subheading-text'})
+    title = title_elem.get_text(strip=True) if title_elem else None
 
-# try:
-#     find_button = wait.until(EC.element_to_be_clickable(
-#         (By.XPATH, '//button[@data-testid="filters-form-btn-find"]')
-#     ))
-#     find_button.click()
-#     print("✅ Clicked FIND button")
-#     time.sleep(3)
-# except Exception as e:
-#     print(f"❌ Could not click FIND: {e}")
-#     driver.quit()
-#     exit()
+    # Price
+    price_elem = card.find('div', {'data-testid': 'listing-price'})
+    price = price_elem.get_text(strip=True) if price_elem else None
+
+    # Location
+    loc_elem = card.find('div', class_='location')
+    location = loc_elem.get_text(strip=True) if loc_elem else None
+
+    # Beds, Baths, Area
+    features_div = card.find('div', class_='features')
+    beds = baths = area = None
+    if features_div:
+        for span in features_div.find_all('span', class_='feature'):
+            text = span.get_text(strip=True).lower()
+            if 'bed' in text:
+                beds = span.get_text(strip=True)
+            elif 'bath' in text:
+                baths = span.get_text(strip=True)
+            elif 'sqft' in text or 'sqm' in text:
+                area = span.get_text(strip=True)
+
+    # URL
+    url = card.get('href')
+    if url and not url.startswith('http'):
+        url = 'https://sharjah.dubizzle.com' + url
+
+    properties.append({
+        'title': title,
+        'price': price,
+        'location': location,
+        'beds': beds,
+        'baths': baths,
+        'area': area,
+        'url': url
+    })
+
+# Convert to DataFrame
+df = pd.DataFrame(properties)
+
+# Display DataFrame
+print(df)
+
+print(f"\n✅ Extracted {len(df)} property listings into DataFrame.")
 
 
-
-#============================== Step 5: Count total properties =================================================
-
-try:
-    print("Counting properties...")
-    time.sleep(2)
-    
-    property_containers = driver.find_elements(By.XPATH, '//li[@role="listitem"]')
-    total_count = len(property_containers)
-    
-    print(f"Total {total_count} properties in page")
-    
-except Exception as e:
-    print(f"Could not count properties: {e}")
-
-# ===================== SMART WAIT FOR DYNAMIC FILTER APPLY =====================
-# try:
-#     # Wait until number of property cards changes from initial count (or > 0)
-#     WebDriverWait(driver, 15).until(
-#         lambda d: len(d.find_elements(By.XPATH, '//li[@role="listitem"]')) > 0
-#     )
-#     print("✅ Filter applied — new properties loaded")
-# except TimeoutException:
-#     print("❌ Filter failed — no properties loaded after click")
-
-#=======================================================MAJOR PART IS PARSING BY JSON============================================
-# ===================== JSON PARSING PART (FINAL) =====================
-time.sleep(8)
-
-html = driver.page_source
-soup = BeautifulSoup(html, 'html.parser')
-script = soup.find('script', id='__NEXT_DATA__', type='application/json')
-
-if script:
-    json_data = json.loads(script.string)
-    try:
-        props = json_data['props']['pageProps']['searchResult']['properties']
-        data = []
-        for p in props:
-            data.append([
-                p.get('title', ''),
-                p.get('price', {}).get('value', '') if isinstance(p.get('price'), dict) else '',
-                p.get('location', {}).get('full_name', ''),
-                p.get('bedrooms', ''),
-                p.get('bathrooms', ''),
-                p.get('sizeInSqFt', '')  # <-- area in sqft
-            ])
-        df = pd.DataFrame(data, columns=['Title', 'Price', 'Location', 'Bedrooms', 'Bathrooms', 'Area'])
-        print(df)
-    except KeyError as e:
-        print(f"❌ Key error: {e}")
-else:
-    print("❌ __NEXT_DATA__ not found")
-
-#=============================ENDING PROJECT HERE============================
+#============================================== ENDING PROJECT HERE============================
 print("🎉 Search completed successfully!")
 print(f"Total time: {time.time() - start_time:.2f}")
 time.sleep(5)
