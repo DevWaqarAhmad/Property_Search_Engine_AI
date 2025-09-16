@@ -125,7 +125,7 @@ def build_url(params):
         "whole building": "residential/residential-building",
         "bungalow": "residential/villahouse",
     }
-    # -------------- COMMERCIAL MAPPING -------------
+
     commercial_map = {
         "warehouses": "commercial/warehouse",
         "commercial-villas": "commercial/commercial-villa",
@@ -137,32 +137,48 @@ def build_url(params):
         "labour-camps": "commercial/staff-accomm",
         "bulk-units": "commercial/other",
         "bulk rent unit": "commercial/other",
-        "commerical-properties": "commercial/office",  
+        "commerical-properties": "commercial/office",
     }
 
     property_type = params.get("property_type", "").lower()
 
-    # --- Handle villa cases first ---
+    # --- Build final URL based on property type ---
     if property_type == "villa":
-        return base_url + "residential/villahouse/"
-    
-    # --- Handle commercial villa specifically ---
-    if property_type == "commercial-villas":
-        return base_url + "commercial/commercial-villa/"
-
-    # --- Residential mappings ---
-    if property_type in residential_map:
-        return base_url + residential_map[property_type] + "/"
-
-    # --- Commercial mappings ---
-    if property_type in commercial_map:
-        return base_url + commercial_map[property_type] + "/"
-
-    # --- Default fallback for unknown property types ---
-    if params.get('purpose_property') == 'rent':
-        return base_url + "residential/"
+        final_url = base_url + "residential/villahouse/"
+    elif property_type == "commercial-villas":
+        final_url = base_url + "commercial/commercial-villa/"
+    elif property_type in residential_map:
+        final_url = base_url + residential_map[property_type] + "/"
+    elif property_type in commercial_map:
+        final_url = base_url + commercial_map[property_type] + "/"
     else:
-        return base_url + "residential/"
+        # Default fallback
+        final_url = base_url + "residential/"
+    
+    # --- Add price filters ---
+    price_params = []
+    min_price = params.get('min_price')
+    max_price = params.get('max_price')
+    
+    if min_price or max_price:
+        if min_price and max_price:
+            # Both min and max price provided
+            price_params.append(f"price__gte={min_price}")
+            price_params.append(f"price__lte={max_price}")
+        elif min_price and not max_price:
+            # Only min price, set very high max price
+            price_params.append(f"price__gte={min_price}")
+            price_params.append(f"price__lte=10000000000")
+        elif max_price and not min_price:
+            # Only max price, set min to 0
+            price_params.append(f"price__gte=0")
+            price_params.append(f"price__lte={max_price}")
+    
+    # Add price parameters to URL if any exist
+    if price_params:
+        final_url += "?" + "&".join(price_params)
+    
+    return final_url
 
 
 #----------------------------------------
@@ -179,17 +195,19 @@ def build_url(params):
 
 
 test_queries = [
-    "A villa in Dubai",                               
-    "A villa house in Sharjah",                       
-    "Looking for an apartment in Sharjah for rent",   
-    "I want a townhouse for sale in Dubai",           
-    "Need a penthouse in Sharjah",                    
-    "Looking for a hotel apartment in Dubai Marina", 
-    "Commercial villa available for sale in Dubai",   
-    "Business villa required in Sharjah",             
-    "Looking for an office for rent in Sharjah",    
-    "Need a warehouse for sale in Dubai",         
+    "Looking for an apartment in Sharjah for rent with a minimum price of 40,000",
+    "Need a villa for sale in Dubai with a maximum budget of 2,000,000",
+    "Searching for a townhouse in Sharjah with price between 70,000 and 120,000",
+    "Looking for a penthouse for rent in Dubai with minimum 100,000 AED",
+    "Hotel apartment required in Sharjah for rent under 80,000",
+    "Residential building for sale in Dubai with no max price but minimum 5,000,000",
+    "Commercial villa available for rent in Sharjah with a max budget of 250,000",
+    "Looking for a warehouse in Dubai for sale with price between 1,000,000 and 3,000,000",
+    "Office space required in Sharjah with a minimum price of 50,000",
+    "Retail shop for rent in Dubai under 200,000",
 ]
+
+
 
 
 for q in test_queries:
