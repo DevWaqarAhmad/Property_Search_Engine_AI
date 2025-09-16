@@ -156,27 +156,49 @@ def build_url(params):
         final_url = base_url + "residential/"
     
     # --- Add price filters ---
-    price_params = []
+    url_params = []
     min_price = params.get('min_price')
     max_price = params.get('max_price')
     
     if min_price or max_price:
         if min_price and max_price:
             # Both min and max price provided
-            price_params.append(f"price__gte={min_price}")
-            price_params.append(f"price__lte={max_price}")
+            url_params.append(f"price__gte={min_price}")
+            url_params.append(f"price__lte={max_price}")
         elif min_price and not max_price:
             # Only min price, set very high max price
-            price_params.append(f"price__gte={min_price}")
-            price_params.append(f"price__lte=10000000000")
+            url_params.append(f"price__gte={min_price}")
+            url_params.append(f"price__lte=10000000000")
         elif max_price and not min_price:
             # Only max price, set min to 0
-            price_params.append(f"price__gte=0")
-            price_params.append(f"price__lte={max_price}")
+            url_params.append(f"price__gte=0")
+            url_params.append(f"price__lte={max_price}")
     
-    # Add price parameters to URL if any exist
-    if price_params:
-        final_url += "?" + "&".join(price_params)
+    # --- Add bathroom filters ---
+    baths = params.get('baths')
+    if baths:
+        if isinstance(baths, list):
+            # Multiple bathroom values
+            for bath in baths:
+                url_params.append(f"bathrooms={bath}")
+        else:
+            # Single bathroom value
+            url_params.append(f"bathrooms={baths}")
+    
+    # --- Add bedroom filters ---
+    bedrooms = params.get('bedrooms')
+    if bedrooms:
+        if isinstance(bedrooms, list):
+            # Multiple bedroom values
+            for bedroom in bedrooms:
+                url_params.append(f"bedrooms={bedroom}")
+        else:
+            # Single bedroom value
+            url_params.append(f"bedrooms={bedrooms}")
+    
+    # Add all parameters to URL if any exist
+    if url_params:
+        final_url += "?" + "&".join(url_params)
     
     return final_url
 
@@ -195,16 +217,10 @@ def build_url(params):
 
 
 test_queries = [
-    "Looking for an apartment in Sharjah for rent with a minimum price of 40,000",
-    "Need a villa for sale in Dubai with a maximum budget of 2,000,000",
-    "Searching for a townhouse in Sharjah with price between 70,000 and 120,000",
-    "Looking for a penthouse for rent in Dubai with minimum 100,000 AED",
-    "Hotel apartment required in Sharjah for rent under 80,000",
-    "Residential building for sale in Dubai with no max price but minimum 5,000,000",
-    "Commercial villa available for rent in Sharjah with a max budget of 250,000",
-    "Looking for a warehouse in Dubai for sale with price between 1,000,000 and 3,000,000",
-    "Office space required in Sharjah with a minimum price of 50,000",
-    "Retail shop for rent in Dubai under 200,000",
+    "looking for rent apartment in dubai with 3 baths and 2 bedrooms price maximum is 300,000",
+    "i want villa for rent in sharjah with 2 5 bedrooms and 4 5 baths price is 100,000 to 500,000",
+    "rent penthouse have 2 5 bedrooms and 4 baths price minimum is 400,000",
+    "i want a commercial villa with 4 5 bedrooms and 3 4 bathrooms and price minimum is 500,000"
 ]
 
 
