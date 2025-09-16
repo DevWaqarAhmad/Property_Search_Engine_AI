@@ -103,7 +103,7 @@ def parse_query_with_gemini(user_query):
 
 
 
-#------------------------FUNCTIONS   USER QUERY TO PARAMS------------------------------------------
+#------------------------FUNCTIONS  USER QUERY TO PARAMS------------------------------------------
 
 def build_dubbizle_url(params):
     # --- Purpose ---

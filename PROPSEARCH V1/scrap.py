@@ -8,30 +8,29 @@ import pandas as pd
 import json
 import time
 import random
-from query import build_find_properties_url
 from bs4 import BeautifulSoup
-from query import parse_query_with_gemini
+from selenium import webdriver
+from selenium.webdriver import ActionChains
+from selenium.webdriver.common.keys import Keys
 
-my_query = "i want a rent apartment in dubai with 3 bedrooms and 3 baths from 60,000AED to 100,000"
-print("------------------------------")
-parsed_params = parse_query_with_gemini(my_query)
-URL = build_find_properties_url(parsed_params)
-print(URL)
-print("==============================")
-# min_price= ""
-# max_price = ""
-# bathrooms = ""
-min_price = parsed_params.get("min_price", "")
-max_price = parsed_params.get("max_price", "")
-bathrooms = parsed_params.get("baths", "")
-search_location = "sharjah"
+
+
+
+#========================= HARD CODED VARIABLE ================
+URL = "https://propsearch.ae/dubai-properties-to-rent/by-location"
+
+
+# my_query = "i want a rent apartment in dubai with 3 bedrooms and 3 baths from 60,000AED to 100,000"
+# print("------------------------------")
+# parsed_params = parse_query_with_gemini(my_query)
+# URL = build_find_properties_url(parsed_params)
+# print(URL)
+# print("==============================")
+
+search_location = "business bay"
 
 #URL ="https://findproperties.ae/for-rent/properties/uae"
 
-print(f"   Min Price: {min_price}")
-print(f"   Max Price: {max_price}") 
-print(f"   Bathrooms: {bathrooms}")
-print("==============================")
 
 
 st_time = time.time()
@@ -97,7 +96,7 @@ def get_chrome_options():
     options.add_argument("--disable-infobars")
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-gpu")
-    # options.add_argument("--window-size=1920,1080")
+    options.add_argument("--window-size=1920,1080")
     #options.add_argument("--headless")
 
     return options
@@ -107,18 +106,172 @@ chrome_options = get_chrome_options()
 # Initialize the Chrome driver with webdriver-manager
 service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service, options=chrome_options)
+print("Opening Propsearch.ae....")
 driver.get(URL)
 
 wait = WebDriverWait(driver, 10)
 
 
+# ------------------------ CLICK ON LOCATION FILTER --------------------------
+
+
+# location_filter = WebDriverWait(driver, 10).until(
+#     EC.element_to_be_clickable((By.XPATH, '//div[contains(@class, "zena-complete-button-text")]'))
+# )
+# location_filter.click()
+# print("✅ Clicked on Location Filter")
+
+
+# ------------------- ENTER LOCATION FILTER --------------------------------
+
+# ------------------------ CLICK ON LOCATION FILTER --------------------------
+# try:
+#     location_filter = WebDriverWait(driver, 10).until(
+#         EC.element_to_be_clickable((By.XPATH, '//div[contains(text(), "Location")]'))
+#     )
+#     driver.execute_script("arguments[0].click();", location_filter)
+#     print("✅ Clicked on Location Filter")
+# except Exception as e:
+#     print("❌ Could not click Location Filter:", e)
+
+
+# ------------------- ENTER LOCATION FILTER --------------------------------
+
+try:
+
+    # ---------- CLICK ON LOCATION FILTER ----------
+    clicked = False
+    selectors_to_try = [
+        '//div[contains(@class, "zena-complete-button-text")]',
+        #'//div[contains(@class, "zena-complete-button")]',
+        #'//div[contains(@class, "zena-search-dropdown")]',
+        #'//button[contains(.,"Location")]',
+        #'//div[contains(text(),"Location") or contains(text(),"location")]'
+    ]
+    for sel in selectors_to_try:
+        try:
+            el = WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.XPATH, sel)))
+            driver.execute_script("arguments[0].click();", el)
+            print("✅ Clicked filter via:", sel)
+            clicked = True
+            break
+        except Exception as e:
+            pass
+
+
+    # if not clicked:
+    #     print("❌ Could not click filter using primary selectors. Trying broader clickable area...")
+    #     # fall back: click the first zena-dropdown-like element
+    #     try:
+    #         el = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(
+    #             (By.CSS_SELECTOR, 'div.zena-dropdown, div.zena-complete-input-wrapper')))
+    #         driver.execute_script("arguments[0].click();", el)
+    #         print("✅ Clicked fallback element")
+    #         clicked = True
+    #     except Exception as e:
+    #         print("❌ Final fallback failed:", e)
+
+    # if not clicked:
+    #     raise Exception("Unable to open location popup — filter click failed.")
+
+    # # give popup time to animate open
+    # time.sleep(0.8)
+
+    # ----------  Locate the input by class (stable) ----------
+    input_xpath_candidates = [
+        #'//input[contains(@class, "zena-complete")]',
+        #'//input[contains(@class, "zena-complete bg-gray-100")]',
+        '//input[@placeholder[contains(.,"Dubai")]]',
+        #'//input[@type="text" and (contains(@class,"zena") or contains(@class,"complete"))]'
+    ]
+    location_input = None
+    for xp in input_xpath_candidates:
+        try:
+            location_input = WebDriverWait(driver, 6).until(EC.visibility_of_element_located((By.XPATH, xp)))
+            print("✅ Found input using:", xp)
+            break
+        except Exception:
+            pass
+
+    if location_input is None:
+        raise Exception("Input field not found by any XPath candidate.")
+
+    # scroll into view & focus
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", location_input)
+    time.sleep(0.3)
+
+    # ----------  Try JS injection first (most reliable for controlled React inputs) ----------
+    try:
+        driver.execute_script("""
+            const el = arguments[0];
+            const val = arguments[1];
+            el.value = val;
+            // dispatch multiple events so React/vue/others pick it up
+            el.dispatchEvent(new Event('input', {bubbles:true}));
+            el.dispatchEvent(new Event('change', {bubbles:true}));
+            el.dispatchEvent(new KeyboardEvent('keydown', {bubbles:true}));
+            el.dispatchEvent(new KeyboardEvent('keyup', {bubbles:true}));
+        """, location_input, search_location)
+        print("✅ JS injection performed")
+        time.sleep(0.8)
+    except Exception as e:
+        print("⚠️ JS injection failed, will try ActionChains. Error:", e)
+
+    # ---------- Wait for suggestions - try to click first suggestion ----------
+    try:
+        # sometimes suggestions wrapper appears inside .acom-suggestions
+        first_selector = '.acom-suggestions div'
+        first_suggestion = WebDriverWait(driver, 4).until(EC.element_to_be_clickable((By.CSS_SELECTOR, first_selector)))
+        driver.execute_script("arguments[0].click();", first_suggestion)
+        print("✅ Clicked first suggestion")
+    except Exception as e:
+        # if suggestion didn't appear, try human-like typing via ActionChains and then Arrow+Enter
+        print("ℹ️ Suggestions not clickable yet; trying ActionChains typing + ENTER...")
+
+        # try:
+        #     try:
+        #         location_input.clear()
+        #     except Exception:
+        #         pass
+        #     actions = ActionChains(driver)
+        #     for ch in search_location:
+        #         actions.send_keys(ch)
+        #     actions.perform()
+        #     time.sleep(0.6)
+        #     # press ARROW DOWN then ENTER to select first suggestion
+        #     location_input.send_keys(Keys.ARROW_DOWN)
+        #     time.sleep(0.3)
+        #     location_input.send_keys(Keys.ENTER)
+        #     print("✅ Typed via ActionChains and pressed ENTER")
+        # except Exception as e2:
+        #     print("❌ ActionChains typing failed:", e2)
+        #     # last resort: send raw keys
+        #     try:
+        #         location_input.send_keys(search_location + Keys.RETURN)
+        #         print("✅ Sent keys + RETURN as last resort")
+        #     except Exception as e3:
+        #         print("❌ All typing fallback methods failed:", e3)
+        #         raise
+
+    # optional: wait for page to react to selection (e.g., filter applied)
+    #time.sleep(1.2)
+
+
+except Exception as exc:
+    print("❌ Overall error:", exc)
+finally:
+    # do not quit immediately if you want to inspect; change to driver.quit() later
+    print("Script finished (you can close driver manually).")
+    # driver.quit()
+
+
 #-----------------DATA FRAME CREATION----------------------------
-df = pd.DataFrame(data)
-print(df.to_string(index=False))
+# df = pd.DataFrame(data)
+# print(df.to_string(index=False))
 
 #-----------------TERMINAL TESTING----------------------------
 print("Entered Location:",search_location)
-
 print('END-----------')
 print('Total time:', time.time()-st_time)
+time.sleep(10)
 driver.quit()
