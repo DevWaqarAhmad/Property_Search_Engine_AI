@@ -8,8 +8,8 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-2.0-flash")
 
+#--------------------------- FUNCTION QUERY TO PARAMS------------------------------
 
-#------------------------FUNCTIONS   USER QUERY TO PARAMS------------------------------------------
 def parse_query_with_gemini(user_query):
     # --- Allowed parameters ---
     ALLOWED_PARAMS = {
@@ -102,35 +102,99 @@ def parse_query_with_gemini(user_query):
 
 
 
-# --------------------- TEST THE QUERY TO url ----------------------------------------------
 
-# query = "Buy a 7+ bed whole building in Dubai, minimum 10M AED"
+#------------------------FUNCTIONS   USER QUERY TO PARAMS------------------------------------------
+
+def build_url(params):
+    # --- Purpose ---
+    if params.get('purpose_property') == 'rent':
+        base_url = "https://sharjah.dubizzle.com/en/property-for-rent/"
+    else:
+        base_url = "https://sharjah.dubizzle.com/en/property-for-sale/"
+
+    # --- Property type mapping ---
+    residential_map = {
+        "apartment": "residential/apartmentflat",
+        "townhouse": "residential/townhouse",
+        "penthouse": "residential/penthouse",
+        "hotel and hotel apartment": "residential/hotel-apartment",
+        "compound": "residential/villa-compound",
+        "full floor": "residential/residential-floor",
+        "half floor": "residential/residential-floor",
+        "duplex": "residential/apartmentflat",
+        "whole building": "residential/residential-building",
+        "bungalow": "residential/villahouse",
+    }
+    # -------------- COMMERCIAL MAPPING -------------
+    commercial_map = {
+        "warehouses": "commercial/warehouse",
+        "commercial-villas": "commercial/commercial-villa",
+        "commercial-plots": "commercial/commercial-land",
+        "commercial-buildings": "commercial/commercial-building",
+        "industrial-land": "commercial/industrial",
+        "showrooms": "commercial/showroom",
+        "shops": "commercial/shop",
+        "labour-camps": "commercial/staff-accomm",
+        "bulk-units": "commercial/other",
+        "bulk rent unit": "commercial/other",
+        "commerical-properties": "commercial/office",  
+    }
+
+    property_type = params.get("property_type", "").lower()
+
+    # --- Handle villa cases first ---
+    if property_type == "villa":
+        return base_url + "residential/villahouse/"
+    
+    # --- Handle commercial villa specifically ---
+    if property_type == "commercial-villas":
+        return base_url + "commercial/commercial-villa/"
+
+    # --- Residential mappings ---
+    if property_type in residential_map:
+        return base_url + residential_map[property_type] + "/"
+
+    # --- Commercial mappings ---
+    if property_type in commercial_map:
+        return base_url + commercial_map[property_type] + "/"
+
+    # --- Default fallback for unknown property types ---
+    if params.get('purpose_property') == 'rent':
+        return base_url + "residential/"
+    else:
+        return base_url + "residential/"
+
+
+#----------------------------------------
+
+# query = "for rent shop in dubai"
 # paras = parse_query_with_gemini(query)
 # print('------------Started---------------')
 # print(paras)
 # print('-----------------------------------spliter 1 --------------------------')
-# my_url = build_propertyfinder_url(paras)
+# my_url = build_url(paras)
 # print('-----------------------------------spliter 2 --------------------------')
 # print(my_url)
 #https://findproperties.ae/for-rent/4-bedroom-villa/uae
 
 
-# test_queries = [
-#     "I want a 3 bedroom apartment for rent in Dubai",
-#     "Looking for a villa for sale in Abu Dhabi",
-#     "Need a studio apartment for sharing in Sharjah",
-#     "Find me a 4 bedroom villa for rent in UAE",
-#     "I need a shop for rent in Dubai",
-#     "Looking for a penthouse for sale in Dubai Marina",
-#     "Want a warehouse for rent in industrial area",
-#     "Find a 2 bedroom townhouse for rent",
-#     "Looking for a labour camp for rent in Abu Dhabi",
-#     "Need a hotel apartment for short stay in Dubai"
-# ]
+test_queries = [
+    "A villa in Dubai",                               
+    "A villa house in Sharjah",                       
+    "Looking for an apartment in Sharjah for rent",   
+    "I want a townhouse for sale in Dubai",           
+    "Need a penthouse in Sharjah",                    
+    "Looking for a hotel apartment in Dubai Marina", 
+    "Commercial villa available for sale in Dubai",   
+    "Business villa required in Sharjah",             
+    "Looking for an office for rent in Sharjah",    
+    "Need a warehouse for sale in Dubai",         
+]
 
-# for q in test_queries:
-#     print("\nQuery:", q)
-#     params = parse_query_with_gemini(q)
-#     print("Parsed:", params)
-#     url = build_find_properties_url(params)
-#     print("URL:  ", url)
+
+for q in test_queries:
+    print("\nQuery:", q)
+    params = parse_query_with_gemini(q)
+    print("Parsed:", params)
+    url = build_url(params)
+    print("URL:  ", url)
