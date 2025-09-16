@@ -14,7 +14,6 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import pandas as pd
-from selenium.webdriver.common.action_chains import ActionChains
 
 
 
@@ -188,37 +187,8 @@ else:
 
 
 #============================== Step 3: Count total properties =================================================
-try:
-    time.sleep(2)
-    
-    # Smart selector - finds actual property cards
-    selectors = [
-        '//div[contains(@class, "property-lpv-card")]',
-        '//div[contains(text(), "AED")]//ancestor::div[contains(@class, "MuiBox") or contains(@class, "card")][1]',
-        '//a[contains(@href, "/property/")]//parent::div'
-    ]
-    
-    cards = []
-    for selector in selectors:
-        cards = driver.find_elements(By.XPATH, selector)
-        if cards: break
-    
-    # Count only displayed property cards with valid content
-    count = len([c for c in cards if c.is_displayed() and 
-                any(kw in c.text.lower() for kw in ['aed', 'bedroom']) and 
-                len(c.text.strip()) > 50])
-    
-    print(f"✅ Found {count} properties on first page")
-    
-except Exception as e:
-    print(f"❌ Could not count: {e}")
-
-
-
 
 # ==================================== JSON PARSING PART (FINAL) =================================
-
-
 
 #============================================== ENDING PROJECT HERE============================
 print("🎉 Search completed successfully!")

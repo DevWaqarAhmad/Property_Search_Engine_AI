@@ -102,110 +102,9 @@ def parse_query_with_gemini(user_query):
 
 
 
+# --------------------- TEST THE QUERY TO url ----------------------------------------------
 
-#------------------------FUNCTIONS   USER QUERY TO PARAMS------------------------------------------
-
-def build_dubbizle_url(params):
-    # --- Purpose ---
-    if params.get('purpose_property') == 'rent':
-        base_url = "https://sharjah.dubizzle.com/en/property-for-rent/"
-    else:
-        base_url = "https://sharjah.dubizzle.com/en/property-for-sale/"
-
-    # --- Property type mapping ---
-    residential_map = {
-        "apartment": "residential/apartmentflat",
-        "townhouse": "residential/townhouse",
-        "penthouse": "residential/penthouse",
-        "hotel and hotel apartment": "residential/hotel-apartment",
-        "compound": "residential/villa-compound",
-        "full floor": "residential/residential-floor",
-        "half floor": "residential/residential-floor",
-        "duplex": "residential/apartmentflat",
-        "whole building": "residential/residential-building",
-        "bungalow": "residential/villahouse",
-    }
-
-    commercial_map = {
-        "warehouses": "commercial/warehouse",
-        "commercial-villas": "commercial/commercial-villa",
-        "commercial-plots": "commercial/commercial-land",
-        "commercial-buildings": "commercial/commercial-building",
-        "industrial-land": "commercial/industrial",
-        "showrooms": "commercial/showroom",
-        "shops": "commercial/shop",
-        "labour-camps": "commercial/staff-accomm",
-        "bulk-units": "commercial/other",
-        "bulk rent unit": "commercial/other",
-        "commerical-properties": "commercial/office",
-    }
-
-    property_type = params.get("property_type", "").lower()
-
-    # --- Build final URL based on property type ---
-    if property_type == "villa":
-        final_url = base_url + "residential/villahouse/"
-    elif property_type == "commercial-villas":
-        final_url = base_url + "commercial/commercial-villa/"
-    elif property_type in residential_map:
-        final_url = base_url + residential_map[property_type] + "/"
-    elif property_type in commercial_map:
-        final_url = base_url + commercial_map[property_type] + "/"
-    else:
-        # Default fallback
-        final_url = base_url + "residential/"
-    
-    # --- Add price filters ---
-    url_params = []
-    min_price = params.get('min_price')
-    max_price = params.get('max_price')
-    
-    if min_price or max_price:
-        if min_price and max_price:
-            # Both min and max price provided
-            url_params.append(f"price__gte={min_price}")
-            url_params.append(f"price__lte={max_price}")
-        elif min_price and not max_price:
-            # Only min price, set very high max price
-            url_params.append(f"price__gte={min_price}")
-            url_params.append(f"price__lte=10000000000")
-        elif max_price and not min_price:
-            # Only max price, set min to 0
-            url_params.append(f"price__gte=0")
-            url_params.append(f"price__lte={max_price}")
-    
-    # --- Add bathroom filters ---
-    baths = params.get('baths')
-    if baths:
-        if isinstance(baths, list):
-            # Multiple bathroom values
-            for bath in baths:
-                url_params.append(f"bathrooms={bath}")
-        else:
-            # Single bathroom value
-            url_params.append(f"bathrooms={baths}")
-    
-    # --- Add bedroom filters ---
-    bedrooms = params.get('bedrooms')
-    if bedrooms:
-        if isinstance(bedrooms, list):
-            # Multiple bedroom values
-            for bedroom in bedrooms:
-                url_params.append(f"bedrooms={bedroom}")
-        else:
-            # Single bedroom value
-            url_params.append(f"bedrooms={bedrooms}")
-    
-    # Add all parameters to URL if any exist
-    if url_params:
-        final_url += "?" + "&".join(url_params)
-    
-    return final_url
-
-
-#----------------------------------------
-
-# query = "for rent shop in dubai"
+# query = "Buy a 7+ bed whole building in Dubai, minimum 10M AED"
 # paras = parse_query_with_gemini(query)
 # print('------------Started---------------')
 # print(paras)
@@ -216,19 +115,22 @@ def build_dubbizle_url(params):
 #https://findproperties.ae/for-rent/4-bedroom-villa/uae
 
 
-test_queries = [
-    "looking for rent apartment in dubai with 3 baths and 2 bedrooms price maximum is 300,000",
-    "i want villa for rent in sharjah with 2 5 bedrooms and 4 5 baths price is 100,000 to 500,000",
-    "rent penthouse have 2 5 bedrooms and 4 baths price minimum is 400,000",
-    "i want a commercial villa with 4 5 bedrooms and 3 4 bathrooms and price minimum is 500,000"
-]
+# test_queries = [
+#     "I want a 3 bedroom apartment for rent in Dubai",
+#     "Looking for a villa for sale in Abu Dhabi",
+#     "Need a studio apartment for sharing in Sharjah",
+#     "Find me a 4 bedroom villa for rent in UAE",
+#     "I need a shop for rent in Dubai",
+#     "Looking for a penthouse for sale in Dubai Marina",
+#     "Want a warehouse for rent in industrial area",
+#     "Find a 2 bedroom townhouse for rent",
+#     "Looking for a labour camp for rent in Abu Dhabi",
+#     "Need a hotel apartment for short stay in Dubai"
+# ]
 
-
-
-
-for q in test_queries:
-    print("\nQuery:", q)
-    params = parse_query_with_gemini(q)
-    print("Parsed:", params)
-    url = build_dubbizle_url(params)
-    print("URL:  ", url)
+# for q in test_queries:
+#     print("\nQuery:", q)
+#     params = parse_query_with_gemini(q)
+#     print("Parsed:", params)
+#     url = build_find_properties_url(params)
+#     print("URL:  ", url)
