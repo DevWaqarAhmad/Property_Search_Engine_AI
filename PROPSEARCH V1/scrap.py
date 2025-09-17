@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.keys import Keys
+import re
 
 
 
@@ -273,12 +274,128 @@ card_container = soup.find('div', class_='zena-search-results-container')
 if card_container:
     property_cards = card_container.find_all('div', class_='mx-auto bg-white rounded-lg border border-gray-200 p-0.5 lg:p-0 mb-4 lg:mb-8 max-w-[550px] lg:max-w-none')
     total_properties = len(property_cards)
-    print(f'TOTEL PROPERTIES ARE: ', {total_properties})
+    print(f'TOTEL PROPERTIES ARE: ', total_properties)
 else:
     print(0)
+
+
+# ----------------------------------- REFRESH THE PAGE ------------------------------------------
+
+# print("🔄 Refreshing page before parsing...")
+# driver.refresh()
+# time.sleep(5)  # Wait for page to reload completely
+# print("✅ Page refreshed successfully")
+
+# ------------------------------------ BS4 PARSING MODULE ------------------------------------
+
+time.sleep(5)
+
+html = driver.page_source
+soup = BeautifulSoup(html, 'html.parser')
+card_container = soup.find('div', class_='zena-search-results-container')
+
+data = []
+
+if card_container:
+    property_cards = card_container.find_all('div', class_='mx-auto bg-white rounded-lg border border-gray-200 p-0.5 lg:p-0 mb-4 lg:mb-8 max-w-[550px] lg:max-w-none')
+    
+    for card in property_cards:
+        try:
+            # Extract Title from specific div
+            title_div = card.find('div', class_='mb-1')
+            if title_div:
+                title = title_div.get_text(strip=True)
+            else:
+                # Fallback: try to find title in link text
+                title_link = card.find('a', class_='block text-sm mb-4')
+                title = title_link.get_text(strip=True) if title_link else 'N/A'
+            
+            # Extract URL from main property link
+            url_link = card.find('a', href=True)
+            if url_link and url_link.get('href'):
+                href = url_link['href']
+                url = 'https://propsearch.ae' + href if href.startswith('/') else href
+            else:
+                url = 'N/A'
+            
+            # Extract Price
+            price_span = card.find('span', class_='price-val')
+            if price_span:
+                price = price_span.get('data-orig', price_span.get_text(strip=True))
+            else:
+                price = 'N/A'
+            
+            # Extract Location (correct class selector)
+            location_div = card.find('div', class_='text-xs text-gray-600')
+            location = location_div.get_text(strip=True) if location_div else 'N/A'
+            
+            # Extract Beds/Baths/Area from property details section
+            # Look for sections with property details
+            details_section = card.find('div', class_='select-none flex items-center gap-4 text-13 mb-4')
+            
+            bedrooms = 'N/A'
+            bathrooms = 'N/A' 
+            area = 'N/A'
+            
+            if details_section:
+                details_text = details_section.get_text()
+                # Parse bed/bath info from text
+                if 'Bed' in details_text:
+                    bed_match = re.search(r'(\d+)\s*Bed', details_text)
+                    bedrooms = bed_match.group(1) if bed_match else 'N/A'
+                
+                if 'Bath' in details_text:
+                    bath_match = re.search(r'(\d+)\s*Bath', details_text)
+                    bathrooms = bath_match.group(1) if bath_match else 'N/A'
+                    
+                # Extract area if available
+                area_match = re.search(r'(\d+(?:,\d+)*)\s*sq', details_text)
+                area = area_match.group(1) if area_match else 'N/A'
+            
+            # Alternative method for extracting details from different sections
+            if bedrooms == 'N/A' or bathrooms == 'N/A':
+                all_text = card.get_text()
+                
+                # Look for bed info
+                bed_patterns = [r'(\d+)\s*bed', r'(\d+)\s*BR', r'(\d+)\s*Bedroom']
+                for pattern in bed_patterns:
+                    match = re.search(pattern, all_text, re.IGNORECASE)
+                    if match:
+                        bedrooms = match.group(1)
+                        break
+                
+                # Look for bath info  
+                bath_patterns = [r'(\d+)\s*bath', r'(\d+)\s*BR', r'(\d+)\s*Bathroom']
+                for pattern in bath_patterns:
+                    match = re.search(pattern, all_text, re.IGNORECASE)
+                    if match:
+                        bathrooms = match.group(1)
+                        break
+            
+            if price != 'N/A':
+                price = re.sub(r'[^\d,]', '', str(price))
+            
+            data.append([
+                title,
+                price,
+                location, 
+                bedrooms,
+                bathrooms,
+                area,
+                url
+            ])
+            
+        except Exception as e:
+            print(f"Error parsing card: {e}")
+            continue
+
+else:
+    print("❌ Container not found!")
+
+
 #-----------------DATA FRAME CREATION----------------------------
-# df = pd.DataFrame(data)
-# print(df.to_string(index=False))
+df = pd.DataFrame(data, columns=['Title', 'Price', 'Location', 'Bedrooms', 'Bathrooms', 'Area', 'URL'])
+print(df.to_string(index=False))
 
 #-----------------TERMINAL TESTING----------------------------
 print("Entered Location:",search_location)
