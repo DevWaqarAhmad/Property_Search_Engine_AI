@@ -16,11 +16,11 @@ def parse_query_with_gemini(user_query):
     # --- Allowed parameters ---
     ALLOWED_PARAMS = {
         "purpose_property": ['to-rent', 'for-sale'],
-        "property_type": ['apartments', 'villa', 'land', 'office',
-                                      'shops', 'buildings', 'warehouse', 'showroom', 'labour-camps',
-                                      'townhouse', 'hotel-apartments', 'other-commercial', 'penthouse'
+        "property_type": ['apartments', 'villas', 'land', 'office',
+                                      'shops', 'buildings', 'warehouse', 'bungalows', 'labour-camps',
+                                      'townhouses', 'hotel-apartments', 'other-commercial', 'penthouses'
                                       ],
-        "bedrooms": ['studio', '1', '2', '3', '4', '5', '6', '7', '8','9','10','11','12','13','14','15','16','17','18','19','20+'],
+        "bedrooms": ['studio', '1', '2', '3', '4', '5', '6+'],
         "baths": ['studio', '1', '2', '3', '4', '5', '6', '7', '8','9','10','11','12','13','14','15','16','17','18','19','20+']
     }
 
@@ -103,38 +103,100 @@ def parse_query_with_gemini(user_query):
 
 # ----------------------------- PARAMS TO URL ---------------------------
 
+def build_prop_search_url(params):
+    """
+    Build URL from parsed params.
+    Supports:
+      - purpose_property (rent/sale)
+      - property_type (mapped to residential_types)
+      - price filter (min_price, max_price)
+      - beds filter (single/multiple)
+    """
+
+    # Mapping property types to residential_types IDs
+    PROPERTY_TYPE_MAP = {
+        "villas": 1,
+        "apartments": 2,
+        "townhouses": 4,
+        "hotel-apartments": 5,
+        "bungalows": 6,
+        "penthouses": 3
+    }
+
+    purpose = params.get("purpose_property", "to-rent")
+
+    # Set base URL based on purpose
+    if purpose == "for-sale":
+        base_url = "https://propsearch.ae/dubai-properties-for-sale/by-location"
+    else:
+        base_url = "https://propsearch.ae/dubai-properties-to-rent/by-location"
+
+    query_parts = []
+
+    # Property type filter
+    property_types = params.get("property_type")
+    if property_types:
+        if isinstance(property_types, str):
+            property_types = [property_types]
+        ids = [str(PROPERTY_TYPE_MAP.get(pt)) for pt in property_types if pt in PROPERTY_TYPE_MAP]
+        if ids:
+            residential_param = "%2C".join(ids)
+            query_parts.append(f"residential_types={residential_param}")
+
+    # Beds filter
+    beds = params.get("beds") or params.get("bedrooms")
+    if beds:
+        if isinstance(beds, list):   # multiple beds
+            beds_param = "%2C".join(map(str, beds))
+        else:  # single bed
+            beds_param = str(beds)
+        query_parts.append(f"beds={beds_param}")
+
+    # Price filter
+    min_price = params.get("min_price")
+    max_price = params.get("max_price")
+
+    price_key = "price" if purpose == "for-sale" else "price_l"
+
+    if min_price and max_price:
+        query_parts.append(f"{price_key}={min_price}%7C{max_price}%7C1")
+    elif min_price and not max_price:
+        query_parts.append(f"{price_key}={min_price}%7C2000000000%7C1")
+    elif max_price and not min_price:
+        query_parts.append(f"{price_key}=0%7C{max_price}%7C1")
+
+    # Build final URL
+    if query_parts:
+        return f"{base_url}?{'&'.join(query_parts)}&sort=0"
+    else:
+        return base_url
+
 
 
 
 # --------------------- TEST THE QUERY TO url ----------------------------------------------
 
-# test_query = "i want to buy a 4 bedrooms and 3 bathroom aprtment in dubai"
+# test_query = "i want to buy a property"
 # paras = parse_query_with_gemini(test_query)
-# print('------------Started---------------')
+# print('------------PARSED PARAMS FROM GEMINI LLM---------------')
 # print(paras)
 # print('-----------------------------------spliter 1 --------------------------')
-# my_url = build_find_properties_url(paras)
+# my_url = build_prop_search_url(paras)
 # print('-----------------------------------spliter 2 --------------------------')
 # print(my_url)
-#https://findproperties.ae/for-rent/4-bedroom-villa/uae
 
 
 # test_queries = [
-#     "I want a 3 bedroom apartment for rent in Dubai",
-#     "Looking for a villa for sale in Abu Dhabi",
-#     "Need a studio apartment for sharing in Sharjah",
-#     "Find me a 4 bedroom villa for rent in UAE",
-#     "I need a shop for rent in Dubai",
-#     "Looking for a penthouse for sale in Dubai Marina",
-#     "Want a warehouse for rent in industrial area",
-#     "Find a 2 bedroom townhouse for rent",
-#     "Looking for a labour camp for rent in Abu Dhabi",
-#     "Need a hotel apartment for short stay in Dubai"
+#     "show me villa in dubai for sale 4 5 beds min price 5m and max price is 10m ",
+#     "show me villa in dubai for rent 4 5 beds min price is 5m and max price is 10m "
 # ]
+
+
+
 
 # for q in test_queries:
 #     print("\nQuery:", q)
 #     params = parse_query_with_gemini(q)
 #     print("Parsed:", params)
-#     url = build_find_properties_url(params)
+#     url = build_prop_search_url(params)
 #     print("URL:  ", url)

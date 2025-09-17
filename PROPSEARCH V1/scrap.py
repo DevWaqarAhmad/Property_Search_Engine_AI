@@ -13,20 +13,20 @@ from selenium import webdriver
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.keys import Keys
 import re
-
+from query import parse_query_with_gemini, build_prop_search_url
 
 
 
 #========================= HARD CODED VARIABLE ================
-URL = "https://propsearch.ae/dubai-properties-to-rent/by-location"
+#URL = "https://propsearch.ae/dubai-properties-to-rent/by-location"
 
 
-# my_query = "i want a rent apartment in dubai with 3 bedrooms and 3 baths from 60,000AED to 100,000"
-# print("------------------------------")
-# parsed_params = parse_query_with_gemini(my_query)
-# URL = build_find_properties_url(parsed_params)
-# print(URL)
-# print("==============================")
+my_query = "i want a rent apartment in dubai with 3 bedrooms and 3 baths from 60,000AED to 100,000"
+print("------------------------------")
+parsed_params = parse_query_with_gemini(my_query)
+URL = build_prop_search_url(parsed_params)
+print(URL)
+print("==============================")
 
 search_location = "business bay"
 
